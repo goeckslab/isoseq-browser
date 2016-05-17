@@ -16,7 +16,9 @@ import CigarString as cs
 import pandas as pd
 from sklearn.cluster import KMeans
 
-COLORS = ['#52B3D9', '#BE90D4', '#446CB3', '#86E2D5', '#F5D76E']
+COLORS = ['#52B3D9', '#BE90D4', '#446CB3', '#86E2D5', '#F5D76E',
+        '#F1A9A0', '#663399', '#87D37C', '#26C281', '#96281B',
+        '#4ECDC4', '#F4B350', '#6C7A89', '#C5EFF7', '#EF4836']            # color of isoforms
 
 MIN_REGION_SIZE = 50
 FASTA_WRAP = 60                 # bases per fasta line
@@ -24,6 +26,7 @@ REGEX_NAME = re.compile ('(c\d+)')      # cluster ID in cluster name
 REGEX_LEN  = re.compile ('\/(\d+)$')     # cluster length in cluster name
 COMPLTAB   = string.maketrans ('ACGTacgt', 'TGCAtgca')     # for reverse-complementing reads
 
+# hold the annotList in the RAM, which contains information of reference transcripts
 def getAnnotations (opt):
     omits = [] if opt.omit is None else opt.omit.split(',')            # transcripts which must not be included
 
@@ -205,6 +208,7 @@ def getGeneFromMatches (opt, tranList, exonList):
 
     return tranList, exonList
 
+# assign exons into blocks
 def assignBlocks (opt, exonList):
     '''
     Assign exons to blocks, separated by sequence which is intronic in
@@ -389,6 +393,7 @@ def writeFasta (opt, cluster):
 
     handle.close()
 
+# group transcripts by similarities
 def groupTran(tranList, exonList, cluster_num):
     # minVal is the minimum starting point of all the transcripts, maxVal stands for maximum
     maxVal = 0
@@ -453,6 +458,8 @@ def groupTran(tranList, exonList, cluster_num):
         colorDF[colorName] = colorDF.apply(assignColor, axis=1)
     return colorDF
 
+#----------------------------------------------------
+# functions that are applied by pandas dataframe
 def getExon(row):
     startEnd = list()
     exons = row.tran.exons
@@ -470,6 +477,18 @@ def toBoolean(row):
         booleanTran[exon[0]:exon[1]+1] = [True for x in range(exon[1]+1-exon[0])]
     return booleanTran
 
+def assignColor(row):
+    for x in range(15):
+        if row[groupName] == x:
+            return COLORS[x]
+            break
+#----------------------------------------------------
+
+# calculate the distance between two transcripts
+#   transcript1: length L1
+#   transcript2: length L2
+#   overlap: length L3
+#   distance:   (L1+L2-2L3)/(L1+L2-L3)
 def calcDis(df, i, j):
     tran1 = df.ix[i]
     tran2 = df.ix[j]
@@ -479,12 +498,7 @@ def calcDis(df, i, j):
     distance = (sum1 + sum2 - 2 * overlapLength) / (sum1 + sum2-overlapLength)
     return distance
 
-def assignColor(row):
-    for x in range(5):
-        if row[groupName] == x:
-            return COLORS[x]
-            break
-
+# cut the transcript name if it is too long
 def changeNames(tranNames):
     newTranNames = list()
     for name in tranNames:

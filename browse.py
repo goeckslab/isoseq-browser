@@ -61,6 +61,7 @@ def getChromosome(tranList):                                # find out which chr
 def updateMatch():                                      # update visuzlization  if the match files changes, return True if update is needed
     checkUpdate = Matches.value.strip().split(',')
     checkUpdate = ['../' + x for x in checkUpdate]
+    global matchList
     try:
         if matchList == checkUpdate:
             return False
@@ -152,7 +153,7 @@ def updateGene(attrname, old, new):                     # update visualization i
 
     Console.text = 'grouping...'
     if Group.value == "on" and isMatch is True:
-        colorDF = groupTran(tranList, exonList, 5)          # group the transcripts by similarities
+        colorDF = groupTran(tranList, exonList, 15)          # group the transcripts by similarities
     else:
         colorDF = None
 
@@ -177,7 +178,7 @@ def updateGene(attrname, old, new):                     # update visualization i
     xs.insert(0, (0, 0))
     ys.insert(0, (0, length+1))
 
-    blockNum = len(boundaryDF)
+    blockNum = len(boundaryDF)                              # update the data used for plotting boundaries and hover block
     right = list(boundaryDF['boundary'])
     right.insert(0, 0)
     del right[-1]
@@ -193,6 +194,7 @@ def updateGene(attrname, old, new):                     # update visualization i
          xs=xs,
          ys=ys,
     )
+
     if isAnnot == False:
         Console.text = 'Console:\nSuccess! Annotation\n file is missing.'
     elif isMatch == False:
@@ -200,6 +202,7 @@ def updateGene(attrname, old, new):                     # update visualization i
     else:
         Console.text = 'Console:\nSuccess!'
 
+# update plot if full and partial support threshold changes
 def updateFP(attrname, old, new):
     global df
     df['alpha'] = df.apply(greaterFP, axis=1)
@@ -254,6 +257,7 @@ def updateWidth(attrname, old, new):
         width=df['width'],
     )
 
+# get the data for plotting exons (start, end position for example)
 def getExonData(exonList, colorDF):
     global df
     df = pd.DataFrame()
@@ -283,6 +287,7 @@ def getExonData(exonList, colorDF):
     df['alpha'] = 1
     df['width'] = Width.value
 
+# get the color for matched isoforms
 def getColor(exonName, colorDF):
     if exonName not in list(colorDF.name):
         color = '#22313F'
@@ -337,19 +342,19 @@ def saveFasta(attrname, old, new):
 def createPlot(df, boundaryDF):
     p = Figure(plot_height=900, plot_width=PLOT_WIDTH, title="", y_range=[],
                 title_text_font_size=TITLE_FONT_SIZE)
-    p.xgrid.grid_line_color = None
+    p.xgrid.grid_line_color = None                              # get rid of the grid in bokeh
     p.ygrid.grid_line_color = None
 
-    quad = p.quad(top="top", bottom="bottom", left="left", right="right", source=blockSource,
+    quad = p.quad(top="top", bottom="bottom", left="left", right="right", source=blockSource,           # create quad when mouse hover
         fill_color="grey", hover_fill_color="firebrick",
         fill_alpha=0.05, hover_alpha=0.3,
         line_color=None, hover_line_color="white")
-    p.multi_line(xs="xs", ys="ys", source=blockSource, color="black",
+    p.multi_line(xs="xs", ys="ys", source=blockSource, color="black",                       # plot boundaries
                 line_width=2, line_alpha=0.4, line_dash="dotted")
-    p.multi_line(xs="xs", ys="ys", source=source, color="color",
+    p.multi_line(xs="xs", ys="ys", source=source, color="color",                            # plot exons
                 line_width="width", line_alpha='line_alpha')
 
-    p.add_tools(HoverTool(tooltips=[("chromosome", "@chromosome"),("exon", "@exon"),
+    p.add_tools(HoverTool(tooltips=[("chromosome", "@chromosome"),("exon", "@exon"),        # make mouse hover work
                 ("start", "@start"), ("end", "@end")], renderers=[quad]))
     return p
 
@@ -390,7 +395,7 @@ Alpha = Slider(title="Alpha value of exons", value=1.0, start=0, end=1.0, step=0
 Full = Slider(title="Full support threshold", value=0, start=0, end=30, step=1.0)
 Partial = Slider(title="Partial support threshold", value=0, start=0, end=50, step=1.0)
 Group = Select(title="Group isoform or not", value="on", options=["on", "off"])
-Cluster = Slider(title="The number of groups", value=3, start=1, end=5, step=1.0)
+Cluster = Slider(title="The number of groups", value=3, start=1, end=15, step=1.0)
 Width = Slider(title="The width of transcripts", value=20, start=5, end=30, step=1)
 Save = TextInput(title="Enter the folder name to data in Fasta", value=None)
 
@@ -445,7 +450,7 @@ Save.on_change('value', saveFasta)
 Width.on_change('value', updateWidth)
 
 # the position of plot and widgets
-controls = [Console, GTF, Format, Matches, Gene, Width, Alpha, Full, Partial, Group, Cluster, Save]
+controls = [Console, GTF, Format, Matches, Cluster, Gene, Width, Alpha, Full, Partial, Group, Save]
 main = VBoxForm(p, paramTable)
 inputs = HBox(VBoxForm(*controls), width=250)
 curdoc().add_root(HBox(inputs, main, geneCountTable, width=1800))
