@@ -499,13 +499,16 @@ def calcDis(df, i, j):
     return distance
 
 # cut the transcript name if it is too long
-def changeNames(tranNames):
+def reduceNameLength(tranNames):
     newTranNames = list()
     for name in tranNames:
         if len(name) >= 30:
-            splitList = name.split('|')
-            newName = "|".join([splitList[0], splitList[2]])
-            newTranNames.append(newName)
+            try:
+                splitList = name.split('|')
+                newName = "|".join([splitList[0], splitList[2]])
+                newTranNames.append(newName)
+            except:
+                newTranNames.append(name[:25])
         else:
             newTranNames.append(name)
     return newTranNames

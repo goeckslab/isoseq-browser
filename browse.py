@@ -147,7 +147,7 @@ def updateGene(attrname, old, new):                     # update visualization i
     length = len(tranNames)
     Console.text = 'Console:\nCreating plot...'
 
-    p.plot_height = Width.value*2*(length+4)                   # set the height of plot according to the length of transcripts
+    p.plot_height = Height.value*2*(length+4)                   # set the height of plot according to the length of transcripts
 
     p.y_range.factors = tranNames[::-1]             # set the y axis tick to the transcripts names
 
@@ -241,9 +241,10 @@ def updateGroup(attrname, old, new):
     )
 
 # update the width of the each isoform
-def updateWidth(attrname, old, new):
-    df['width'] = Width.value
-    p.plot_height = Width.value*2*(length+4)
+def updateHeightWidth(attrname, old, new):
+    df['width'] = Height.value
+    p.plot_height = Height.value*2*(length+4)
+    p.plot_width = Width.value
     source.data = dict(
         xs=df['xs'],
         ys=df['ys'],
@@ -285,7 +286,7 @@ def getExonData(exonList, colorDF):
 
         df = df.append(data,ignore_index=True)
     df['alpha'] = 1
-    df['width'] = Width.value
+    df['width'] = Height.value
 
 # get the color for matched isoforms
 def getColor(exonName, colorDF):
@@ -340,7 +341,7 @@ def saveFasta(attrname, old, new):
 
 # create the visualization plot
 def createPlot(df, boundaryDF):
-    p = Figure(plot_height=900, plot_width=PLOT_WIDTH, title="", y_range=[],
+    p = Figure(plot_height=300, plot_width=Width.value, title="", y_range=[],
                 title_text_font_size=TITLE_FONT_SIZE)
     p.xgrid.grid_line_color = None                              # get rid of the grid in bokeh
     p.ygrid.grid_line_color = None
@@ -389,14 +390,15 @@ class getParams(object):
 # create all kinds of widgets
 GTF = TextInput(title="Enter the name of annotation file", value="gencode.vM9.annotation.gtf")
 Format = TextInput(title="Enter the format of annotation file, standard is gtf", value="standard")
-Matches = TextInput(title="Enter the name of pickle files from MatchAnnot, e.g. of multiple files: a.pickle,b.pickle", value="matches.pickle")
+Matches = TextInput(title="Enter the name of pickle files from MatchAnnot,e.g. of multiple files: a.pickle,b.pickle", value="matches.pickle")
 Gene = TextInput(title="Select gene to visualize")
 Alpha = Slider(title="Alpha value of exons", value=1.0, start=0, end=1.0, step=0.1)
 Full = Slider(title="Full support threshold", value=0, start=0, end=30, step=1.0)
 Partial = Slider(title="Partial support threshold", value=0, start=0, end=50, step=1.0)
 Group = Select(title="Group isoform or not", value="on", options=["on", "off"])
 Cluster = Slider(title="The number of groups", value=3, start=1, end=15, step=1.0)
-Width = Slider(title="The width of transcripts", value=20, start=5, end=30, step=1)
+Height = Slider(title="The height of transcripts", value=20, start=5, end=30, step=1)
+Width = Slider(title="The width of plot", value=1200, start=400, end=1500, step=50)
 Save = TextInput(title="Enter the folder name to data in Fasta", value=None)
 
 # the data used for plotting isoforms, boundaries and gene
@@ -447,10 +449,12 @@ Partial.on_change('value', updateFP)
 Alpha.on_change('value', updateFP)
 Cluster.on_change('value', updateGroup)
 Save.on_change('value', saveFasta)
-Width.on_change('value', updateWidth)
+Height.on_change('value', updateHeightWidth)
+Width.on_change('value', updateHeightWidth)
 
 # the position of plot and widgets
-controls = [Console, GTF, Format, Matches, Cluster, Gene, Width, Alpha, Full, Partial, Group, Save]
-main = VBoxForm(p, paramTable)
+files = [GTF, Format, Matches]
+controls = [Console, Gene, Height, Width, Alpha, Full, Partial, Group, Cluster, Save]
+main = VBoxForm(p, HBox(*files, width=1100), paramTable)
 inputs = HBox(VBoxForm(*controls), width=250)
 curdoc().add_root(HBox(inputs, main, geneCountTable, width=1800))
