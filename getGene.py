@@ -279,6 +279,67 @@ def assignBlocksReverse (opt, exonList):
 
     return blocks
 
+def annotationBlocks (exonList):
+    '''
+    Assign exons to blocks, separated by sequence which is intronic in
+    all transcripts. exonList is assumed to be sorted by ascending
+    start position.
+    '''
+
+    annotExons = list()
+    for e in exonList:
+        if e.tran.annot is True:
+            annotExons.append(e)
+
+    adjust  = annotExons[0].adjStart
+    blockNo = 0
+    exonIx  = 0
+    blocks = list()
+
+    while exonIx < len(annotExons):               # can't use enumerate here, it's a double loop
+
+        blockStart = annotExons[exonIx].start     # block start = start of first exon in block
+        blockEnd   = annotExons[exonIx].end       # initial value, updated in the loop below
+        blockStartIx = exonIx
+
+        while exonIx < len(annotExons) and annotExons[exonIx].start <= blockEnd:
+            myExon = annotExons[exonIx]
+            if myExon.end > blockEnd:
+                blockEnd = myExon.end
+            exonIx += 1
+
+        adjust += blockEnd - blockStart + 1
+        blocks.append(Block(blockStart, blockEnd, adjust))
+        blockNo += 1
+
+    return blocks
+
+def annotationBlocksReverse(exonList):
+    annotExons = list()
+    for e in exonList:
+        if e.tran.annot is True:
+            annotExons.append(e)
+    adjust  = annotExons[0].adjStart
+    blockNo = 0
+    exonIx  = 0
+    blocks = list()
+    while exonIx < len(annotExons):               # can't use enumerate here, it's a double loop
+
+        blockStart = annotExons[exonIx].end     # block start = start of first exon in block
+        blockEnd   = annotExons[exonIx].start       # initial value, updated in the loop below
+        blockStartIx = exonIx
+
+        while exonIx < len(annotExons) and annotExons[exonIx].end >= blockEnd:
+            myExon = annotExons[exonIx]
+            if myExon.start < blockEnd:
+                blockEnd = myExon.start
+            exonIx += 1
+
+        adjust += blockStart - blockEnd + 1
+        blocks.append(Block(blockStart, blockEnd, adjust))
+        blockNo += 1
+    return blocks
+
 def findRegions (tranList):
     '''Find breakpoints where coverage by exons changes.'''
 

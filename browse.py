@@ -74,7 +74,8 @@ def updateGene(attrname, old, new):                     # update visualization i
     source.data=dict(x=[], y=[], color=[], line_alpha=[],                       # the data source for plotting transcripts
                                  QScore=[], start=[], end=[])
     blockSource.data=dict(top=[], bottom=[], left=[], right=[], exon=[],        # the data source for plotting block boundary
-                        start=[], end=[], chromosome=[], xs=[], ys=[])
+                        start=[], end=[], chromosome=[], xs=[], ys=[],
+                        hover_fill_color=[])
     p.title = "Transcript of %s" % Gene.value.strip()                           # update the title of plot
 
     # create and display a list of all the genes
@@ -83,11 +84,8 @@ def updateGene(attrname, old, new):                     # update visualization i
         matchList = Matches.value.strip().split(',')
         allGenes = Counter()                                        # create a counter hastable(dictionary) object
         for matchFile in matchList:                                 # there can be multiple match files as inputs
-            print '----------------------------------------------'
-            print matchFile
             try:
                 clusterDict = cl.ClusterDict.fromPickle(matchFile)            # pickle file produced by matchAnnot.py
-                print clusterDict
             except IOError:
                 Console.text = 'Console:\nNo such file: %s\n change gene to restart' %matchFile
                 break
@@ -141,7 +139,11 @@ def updateGene(attrname, old, new):                     # update visualization i
 
     findRegions (tranList)                       # determine regions occupied by each transcript
     tranNames = orderTranscripts (tranList)                 # get the names of transcripts, placed them in the right order
-    tranNames = changeNames(tranNames)                      # if the length of name is too long, reduce it
+    tranNames = reduceNameLength(tranNames)                      # if the length of name is too long, reduce it
+
+    for exon in exonList:
+        if exon.tran.annot:
+            blocks[exon.block].annot = True
 
     global length, df, colorDF,boundaryDF
     length = len(tranNames)
@@ -189,7 +191,8 @@ def updateGene(attrname, old, new):                     # update visualization i
          left = right,
          start = boundaryDF['start'],
          end = boundaryDF['end'],
-         exon = [x+1 for x in range(blockNum)],
+         exon = boundaryDF['exon'],
+         hover_fill_color = boundaryDF['color'],
          chromosome = [chromosome for x in range(blockNum)],
          xs=xs,
          ys=ys,
@@ -305,21 +308,25 @@ def getColor(exonName, colorDF):
 
 # find out the position of boundaries
 def getBoundaryData(blocks):
-    boundaryDF = pd.DataFrame()
-    boundary = list()
-    start = list()
-    end = list()
-    for bound in blocks:
-        boundary.append(bound.boundary)
-        start.append(bound.start)
-        end.append(bound.end)
-    # add data used for plotting to pandas DataFrame
     global boundaryDF
-    boundaryDF['boundary'] = boundary
-    boundaryDF['xs'] = zip(boundary, boundary)
+    columns = ['boundary', 'left', 'xs', 'start', 'end', 'exon', 'color']
+    boundaryDF = pd.DataFrame()
+    i = 1
+    for bound in blocks:
+        if bound.annot:
+            exon = i
+            color = 'red'
+            i += 1
+        else:
+            exon = None
+            color = 'blue'
+        data = pd.Series([bound.boundary, bound.boundary+bound.end-bound.start,
+                        (bound.boundary, bound.boundary), bound.start,
+                        bound.end, exon, color], index=[columns])
+
+        boundaryDF = boundaryDF.append(data, ignore_index=True)
+    # add data used for plotting to pandas DataFrame
     boundaryDF['ys'] = [(0, length+1) for x in range(len(boundaryDF))]
-    boundaryDF['start'] = start
-    boundaryDF['end'] = end
     boundaryDF = boundaryDF.sort('boundary')
 
 # find out which isoform is below full/partial threshold, which isoform is not
@@ -347,7 +354,7 @@ def createPlot(df, boundaryDF):
     p.ygrid.grid_line_color = None
 
     quad = p.quad(top="top", bottom="bottom", left="left", right="right", source=blockSource,           # create quad when mouse hover
-        fill_color="grey", hover_fill_color="firebrick",
+        fill_color="grey", hover_fill_color="hover_fill_color",
         fill_alpha=0.05, hover_alpha=0.3,
         line_color=None, hover_line_color="white")
     p.multi_line(xs="xs", ys="ys", source=blockSource, color="black",                       # plot boundaries
@@ -403,7 +410,8 @@ Save = TextInput(title="Enter the folder name to data in Fasta", value=None)
 
 # the data used for plotting isoforms, boundaries and gene
 blockSource = ColumnDataSource(data=dict(top=[], bottom=[], left=[], right=[], exon=[],
-                                start=[], end=[], chromosome=[], xs=[], ys=[]))
+                                start=[], end=[], chromosome=[], xs=[], ys=[],
+                                hover_fill_color=[]))
 source = ColumnDataSource(data=dict(x=[], y=[], color=[], line_alpha=[], width=[],
                             QScore=[], start=[], end=[]))
 geneSource = ColumnDataSource(data=dict(Gene=[], Isoforms=[]))
