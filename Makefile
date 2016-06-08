@@ -1,6 +1,8 @@
+SHELL=bash
+
 # For setting up a conda environment.
 ENV_NAME=ib_env
-ACTIVATE_ENV=bash -c "source activate $(ENV_NAME)"
+ACTIVATE_ENV=source activate $(ENV_NAME)
 
 run: env gencode.vM9.annotation.gtf
 	# python matchAnnot.py --gtf gencode.vM9.annotation.gtf --outpickle True example.sam > example.pickle
@@ -13,9 +15,15 @@ env:
 	$(ACTIVATE_ENV) && conda install -y -c bokeh scikit-learn
 	touch env
 
+# Download and unzip mm10 (?) annotation.
 gencode.vM9.annotation.gtf:
 	wget ftp://ftp.sanger.ac.uk/pub/gencode/Gencode_mouse/release_M9/gencode.vM9.annotation.gtf.gz
 	gunzip gencode.vM9.annotation.gtf.gz
+
+# Download and unzip hg19 annotation.
+gencode.v24lift37.annotation.gtf:
+	wget ftp://ftp.sanger.ac.uk/pub/gencode/Gencode_human/release_24/GRCh37_mapping/gencode.v24lift37.annotation.gtf.gz
+	gunzip gencode.v24lift37.annotation.gtf.gz
 
 clean:
 	rm -f env
