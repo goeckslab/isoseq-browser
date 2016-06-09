@@ -4,9 +4,9 @@ sys.path.append(os.getcwd())
 import getGene
 from getGene import *
 from bokeh.plotting import Figure
-from bokeh.models import ColumnDataSource, HoverTool, HBox, VBoxForm, PanTool, WheelZoomTool, BoxZoomTool, ResetTool, ResizeTool, PreviewSaveTool, Range1d, LinearAxis
+from bokeh.models import ColumnDataSource, HoverTool, VBox, HBox, VBoxForm
 from bokeh.io import curdoc
-from bokeh.models.widgets import Slider, Select, TextInput, Button, VBox, PreText, DataTable, TableColumn
+from bokeh.models.widgets import Slider, Select, TextInput, Button, PreText, DataTable, TableColumn
 from sklearn.cluster import KMeans
 import pandas as pd
 from collections import Counter
@@ -21,7 +21,6 @@ def selectGene(opt):
     tranList = list()                                      # list of Transcript objects
     exonList = list()                                      # list of Exon objects
     global isAnnot, isMatch                                # whether annotation transcripts or matched isoforms are in the inputs
-
     if opt.gtf is not None:
         try:
             getGeneFromAnnotation (opt, tranList, exonList)                 # find transcripts, exons of the gene in the reference database
@@ -58,47 +57,48 @@ def getChromosome(tranList):                                # find out which chr
             break
     return chromosome
 
-def updateMatch():                                      # update visuzlization  if the match files changes, return True if update is needed
-    checkUpdate = Matches.value.strip().split(',')
-    checkUpdate = ['../' + x for x in checkUpdate]
-    global matchList
-    try:
-        if matchList == checkUpdate:
-            return False
-        else:
-            return True
-    except NameError:
-        return True
-
-def updateGene(attrname, old, new):                     # update visualization if the gene changes
-    source.data=dict(x=[], y=[], color=[], line_alpha=[],                       # the data source for plotting transcripts
-                                 QScore=[], start=[], end=[])
-    blockSource.data=dict(top=[], bottom=[], left=[], right=[], exon=[],        # the data source for plotting block boundary
-                        start=[], end=[], chromosome=[], xs=[], ys=[],
-                        hover_fill_color=[])
-    p.title = "Transcript of %s" % Gene.value.strip()                           # update the title of plot
-
-    # create and display a list of all the genes
-    global matchList
-    if updateMatch():                                               # if matches files are updated
-        matchList = Matches.value.strip().split(',')
-        allGenes = Counter()                                        # create a counter hastable(dictionary) object
-        for matchFile in matchList:                                 # there can be multiple match files as inputs
-            try:
-                clusterDict = cl.ClusterDict.fromPickle(matchFile)            # pickle file produced by matchAnnot.py
-            except IOError:
-                Console.text = 'Console:\nNo such file: %s\n change gene to restart' %matchFile
-                break
+def howManyIsoforms(matchList):
+    allGenes = Counter()                                        # create a counter hastable(dictionary) object
+    for matchFile in matchList:
+        try:
+            clusterDict = cl.ClusterDict.fromPickle(matchFile)
             geneDict = dict()                                               # how many isoforms for each gene
             myDict = clusterDict.getGeneDict()
             for key, val in myDict.iteritems():
                 geneDict.setdefault(key, len(val))
             geneDict = Counter(geneDict)
             allGenes = allGenes + geneDict                                  # add information of new match file
-        geneSource.data = dict(                                             # update the table in visualization
-            Gene = allGenes.keys(),
-            Isoforms = allGenes.values(),
-        )
+        except IOError:
+            Console.text = 'Console:\nNo such file: %s\n change gene to restart' %matchFile
+            break
+    geneSource.data = dict(                                             # update the table in visualization
+        Gene = allGenes.keys(),
+        Isoforms = allGenes.values(),
+    )
+
+def updateGene(attrname, old, new):                     # update visualization if the gene changes
+    p.title = "Transcript of %s" % Gene.value.strip()                           # update the title of plot
+    # Reset when updating genes
+    blockDict = dict(top=[], bottom=[], left=[], right=[], exon=[],
+                    start=[], end=[], chromosome=[], xs=[], ys=[],
+                    hover_fill_color=[], boundary=[])
+    sourceDict = dict(name=[], xs=[], ys=[], colors=[], line_alpha=[], width=[], height=[],
+                        tran=[], full=[], partial=[], annot=[], QScore=[], start=[], end=[])
+    codonDict = dict(x=[], y=[], color=[])
+    blockSource.data = blockDict
+    source.data = sourceDict
+    codonSource.data = codonDict
+    # create and display a list of all the genes
+    Console.text = 'Console:\nLoading genes...'
+    global matchList                                                # update visuzlization  if the match files changes, return True if update is needed
+    try:
+        if matchList != Matches.value.strip().split(','):
+            matchList = Matches.value.strip().split(',')
+            howManyIsoforms(matchList)
+    except NameError:
+        matchList = Matches.value.strip().split(',')
+        howManyIsoforms(matchList)
+
 
     # load the reference transcripts
     global Annotations, gtf, opt
@@ -125,7 +125,7 @@ def updateGene(attrname, old, new):                     # update visualization i
             Gene.value.strip(), forMat=Format.value.strip(), annotations=Annotations)
     opt.gene = Gene.value.strip()
 
-    global tranList
+    global chromosome
     tranList, exonList = selectGene(opt)                    # select transcripts by gene
     chromosome = getChromosome(tranList)                    # find out which chromosome does the gene locate
 
@@ -145,7 +145,7 @@ def updateGene(attrname, old, new):                     # update visualization i
         if exon.tran.annot:
             blocks[exon.block].annot = True
 
-    global length, df, colorDF,boundaryDF
+    global length, colorDF
     length = len(tranNames)
     Console.text = 'Console:\nCreating plot...'
 
@@ -158,45 +158,15 @@ def updateGene(attrname, old, new):                     # update visualization i
         colorDF = groupTran(tranList, exonList, 15)          # group the transcripts by similarities
     else:
         colorDF = None
+    sourceDict = getExonData(exonList, colorDF)                          # get the data of each isoform that can be directly used to plot, put it into a global dataframe
 
-    getExonData(exonList, colorDF)                          # get the data of each isoform that can be directly used to plot, put it into a global dataframe
+    codonDict = plotStartStop (tranList, blocks)
 
-    source.data = dict(                                     # update the data for plot
-        xs=df['xs'],
-        ys=df['ys'],
-        color=df['colors'],
-        line_alpha=df['alpha'],
-        x=df['circlex'],
-        y=df['circley'],
-        QScore=df['QScore'],
-        start=df['start'],
-        end=df['end'],
-        width = df['width'],
-    )
-    getBoundaryData(blocks)                                 # get the data of each block that can be directly used to plot, put it into a global dataframe
-
-    xs = list(boundaryDF['xs'])
-    ys= list(boundaryDF['ys'])
-    xs.insert(0, (0, 0))
-    ys.insert(0, (0, length+1))
-
-    blockNum = len(boundaryDF)                              # update the data used for plotting boundaries and hover block
-    right = list(boundaryDF['boundary'])
-    right.insert(0, 0)
-    del right[-1]
-    blockSource.data = dict(
-         top = [(length+1) for x in range(blockNum)],
-         bottom = [0 for x in range(blockNum)],
-         right = boundaryDF['boundary'],
-         left = right,
-         start = boundaryDF['start'],
-         end = boundaryDF['end'],
-         exon = boundaryDF['exon'],
-         hover_fill_color = boundaryDF['color'],
-         chromosome = [chromosome for x in range(blockNum)],
-         xs=xs,
-         ys=ys,
-    )
+    codonSource.data = codonDict
+    source.data = sourceDict
+    # update the data used for plotting boundaries and hover block
+    blockDict = getBoundaryData(blocks)                                 # get the data of each block that can be directly used to plot, put it into a global dataframe
+    blockSource.data = blockDict
 
     if isAnnot == False:
         Console.text = 'Console:\nSuccess! Annotation\n file is missing.'
@@ -207,92 +177,59 @@ def updateGene(attrname, old, new):                     # update visualization i
 
 # update plot if full and partial support threshold changes
 def updateFP(attrname, old, new):
-    global df
-    df['alpha'] = df.apply(greaterFP, axis=1)
-    source.data = dict(
-        xs=df['xs'],
-        ys=df['ys'],
-        color=df['colors'],
-        line_alpha=df['alpha'],
-        x=df['circlex'],
-        y=df['circley'],
-        QScore=df['QScore'],
-        start=df['start'],
-        end=df['end'],
-        width=df['width'],
-    )
+    sourceDict = source.data
+    sourceDict['line_alpha'] = [greaterFP(pos) for pos in range(len(sourceDict['annot']))]
+    source.data = sourceDict
 
 # update the number of groups
 def updateGroup(attrname, old, new):
     colors = list()
-    global colorDF, df
-    for index, row in df.iterrows():
-        color = getColor(row['tran'], colorDF)
-        colors.append(color)
-    df['colors'] = colors
-    source.data = dict(
-        xs=df['xs'],
-        ys=df['ys'],
-        color=df['colors'],
-        line_alpha=df['alpha'],
-        x=df['circlex'],
-        y=df['circley'],
-        QScore=df['QScore'],
-        start=df['start'],
-        end=df['end'],
-        width=df['width'],
-    )
+    sourceDict = source.data
+    colors = [getColorFromDF(tran, colorDF) for tran in sourceDict['tran']]
+    sourceDict['colors'] = colors
+    source.data = sourceDict
 
 # update the width of the each isoform
 def updateHeightWidth(attrname, old, new):
-    df['width'] = Height.value
     p.plot_height = Height.value*2*(length+4)
     p.plot_width = Width.value
-    source.data = dict(
-        xs=df['xs'],
-        ys=df['ys'],
-        color=df['colors'],
-        line_alpha=df['alpha'],
-        x=df['circlex'],
-        y=df['circley'],
-        QScore=df['QScore'],
-        start=df['start'],
-        end=df['end'],
-        width=df['width'],
-    )
+    sourceDict = source.data
+    sourceDict['height'] = [Height.value for x in range(len(sourceDict['xs']))]
+    source.data = sourceDict
 
 # get the data for plotting exons (start, end position for example)
 def getExonData(exonList, colorDF):
-    global df
-    df = pd.DataFrame()
-    columns = ['name', 'xs', 'ys', 'colors', 'circlex', 'circley', 'QScore',
+    sourceDict = dict(name=[], xs=[], ys=[], colors=[], line_alpha=[], width=[], height=[],
+                        tran=[], full=[], partial=[], annot=[], QScore=[], start=[], end=[])
+    columns = ['name', 'xs', 'ys', 'colors', 'QScore',
                 'start', 'end', 'tran', 'full', 'partial', 'annot']
-    df = pd.DataFrame(columns=columns)
     for myExon in exonList:
         exonSize = myExon.end - myExon.start + 1
         adjStart = myExon.adjStart
         if colorDF is not None:
-            color = getColor(myExon.tran.name, colorDF)
+            color = getColorFromDF(myExon.tran.name, colorDF)
         else:
             if myExon.tran.annot:
                 color = REFERENCE_COLOR
             else:
                 color = MATCH_COLOR
-        xs = [adjStart, adjStart+exonSize]
-        ys = [length-(myExon.tran.tranIx), length-(myExon.tran.tranIx)]
-        circlex = (adjStart + adjStart+exonSize)/2
-        circley = length-(myExon.tran.tranIx)
-        data = pd.Series([myExon.name, xs, ys, color, circlex, circley,
-                        myExon.QScore, myExon.start, myExon.end,
-                        myExon.tran.name, myExon.full, myExon.partial,
-                        myExon.tran.annot], index=[columns])
+        xs = (adjStart, adjStart+exonSize)
+        ys = (length-(myExon.tran.tranIx), length-(myExon.tran.tranIx))
+        values = [myExon.name, xs, ys, color,
+                    myExon.QScore, myExon.start, myExon.end,
+                    myExon.tran.name, myExon.full, myExon.partial,
+                    myExon.tran.annot]
+        counter = 0
+        while counter < len(columns):
+            sourceDict[columns[counter]].append(values[counter])
+            counter += 1
 
-        df = df.append(data,ignore_index=True)
-    df['alpha'] = 1
-    df['width'] = Height.value
+    sourceDict['line_alpha'] = [1 for x in range(len(sourceDict['xs']))]
+    sourceDict['height'] = [Height.value for x in range(len(sourceDict['xs']))]
+    return sourceDict
 
 # get the color for matched isoforms
-def getColor(exonName, colorDF):
+def getColorFromDF(exonName, colorDF):
     if exonName not in list(colorDF.name):
         color = '#22313F'
     else:
@@ -300,46 +237,63 @@ def getColor(exonName, colorDF):
         colorName = 'color%s' %str(Cluster.value)
         try:
             color = row[colorName]
-        except ValueError:
-            color = row['color1']
-        except KeyError:
+        except (ValueError, KeyError):
             color = row['color1']
     return color
 
 # find out the position of boundaries
 def getBoundaryData(blocks):
-    global boundaryDF
-    columns = ['boundary', 'left', 'xs', 'start', 'end', 'exon', 'color']
-    boundaryDF = pd.DataFrame()
-    i = 1
+    blockDict = dict(top=[], bottom=[], left=[], right=[], exon=[],
+                    start=[], end=[], chromosome=[], xs=[], ys=[],
+                    hover_fill_color=[], boundary=[])
+    blockDict['xs'] = [(0, 0)]
+    blockDict['ys'] = [(0, length+1)]
+    blockDict['left'] = [0]
+    columns = ['boundary', 'right', 'left', 'xs', 'start', 'end', 'exon', 'hover_fill_color']
+    exonCounter = 1
+
     for bound in blocks:
         if bound.annot:
-            exon = i
+            exon = exonCounter
             color = 'red'
-            i += 1
+            exonCounter += 1
         else:
             exon = None
             color = 'blue'
-        data = pd.Series([bound.boundary, bound.boundary+bound.end-bound.start,
+        values = [bound.boundary, bound.boundary, bound.boundary,
                         (bound.boundary, bound.boundary), bound.start,
-                        bound.end, exon, color], index=[columns])
+                        bound.end, exon, color]
+        counter = 0
 
-        boundaryDF = boundaryDF.append(data, ignore_index=True)
-    # add data used for plotting to pandas DataFrame
-    boundaryDF['ys'] = [(0, length+1) for x in range(len(boundaryDF))]
-    boundaryDF = boundaryDF.sort('boundary')
+        numberOfBlocks = len(blocks)
+        blockDict['top'] = [(length+1) for x in range(numberOfBlocks)]
+        blockDict['bottom'] = [0 for x in range(numberOfBlocks)]
+        blockDict['chromosome'] = [chromosome for x in range(numberOfBlocks)]
+
+        while counter < len(columns):
+            blockDict[columns[counter]].append(values[counter])
+            counter += 1
+    left = blockDict['left']
+    blockDict['left'] = left[:-1]
+    blockDict['ys'] = [(0, length+1) for x in range(numberOfBlocks+1)]
+    return blockDict
 
 # find out which isoform is below full/partial threshold, which isoform is not
-def greaterFP(row):
+def greaterFP(pos):
     alphaVal = Alpha.value
-    if row['annot'] is False:
-        if row['full'] < Full.value or row['partial'] < Partial.value:
+    sourceDict = source.data
+    annot = sourceDict['annot']
+    if annot[pos] is False:
+        if sourceDict['full'][pos] < Full.value or sourceDict['partial'][pos] < Partial.value:
             return alphaVal
+        else:
+            return 1.0
     else:
         return 1.0
 
 # save the transcripts to .fasta file, the function is copied from MatchAnnot
 def saveFasta(attrname, old, new):
+    console.text = 'Console:\nSaving...'
     opt.fasta = Save.value.strip()
     tranList = list()
     exonList = list()
@@ -347,7 +301,7 @@ def saveFasta(attrname, old, new):
     opt.fasta = None
 
 # create the visualization plot
-def createPlot(df, boundaryDF):
+def createPlot():
     p = Figure(plot_height=300, plot_width=Width.value, title="", y_range=[],
                 title_text_font_size=TITLE_FONT_SIZE)
     p.xgrid.grid_line_color = None                              # get rid of the grid in bokeh
@@ -357,11 +311,11 @@ def createPlot(df, boundaryDF):
         fill_color="grey", hover_fill_color="hover_fill_color",
         fill_alpha=0.05, hover_alpha=0.3,
         line_color=None, hover_line_color="white")
+    p.multi_line(xs="xs", ys="ys", source=source, color="colors",                            # plot exons
+                line_width="height", line_alpha='line_alpha')
     p.multi_line(xs="xs", ys="ys", source=blockSource, color="black",                       # plot boundaries
                 line_width=2, line_alpha=0.4, line_dash="dotted")
-    p.multi_line(xs="xs", ys="ys", source=source, color="color",                            # plot exons
-                line_width="width", line_alpha='line_alpha')
-
+    p.inverted_triangle(x="x", y="y", color="color", source=codonSource, size=Height.value+1, alpha=0.5)
     p.add_tools(HoverTool(tooltips=[("chromosome", "@chromosome"),("exon", "@exon"),        # make mouse hover work
                 ("start", "@start"), ("end", "@end")], renderers=[quad]))
     return p
@@ -409,18 +363,24 @@ Width = Slider(title="The width of plot", value=1200, start=400, end=1500, step=
 Save = TextInput(title="Enter the folder name to data in Fasta", value=None)
 
 # the data used for plotting isoforms, boundaries and gene
-blockSource = ColumnDataSource(data=dict(top=[], bottom=[], left=[], right=[], exon=[],
-                                start=[], end=[], chromosome=[], xs=[], ys=[],
-                                hover_fill_color=[]))
-source = ColumnDataSource(data=dict(x=[], y=[], color=[], line_alpha=[], width=[],
-                            QScore=[], start=[], end=[]))
-geneSource = ColumnDataSource(data=dict(Gene=[], Isoforms=[]))
 
+blockDict = dict(top=[], bottom=[], left=[], right=[], exon=[],
+                start=[], end=[], chromosome=[], xs=[], ys=[],
+                hover_fill_color=[], boundary=[])
+sourceDict = dict(name=[], xs=[], ys=[], colors=[], line_alpha=[], width=[], height=[],
+                    tran=[], full=[], partial=[], annot=[], QScore=[], start=[], end=[])
+geneDict = dict(Gene=[], Isoforms=[])
+codonDict = dict(x=[], y=[], color=[])
+
+blockSource = ColumnDataSource(data=blockDict)
+source = ColumnDataSource(data=sourceDict)
+geneSource = ColumnDataSource(data=geneDict)
+codonSource = ColumnDataSource(data=codonDict)
 # the console box
 Console = PreText(text='Console:\nStart visualize by entering \nannotations, pickle file and gene.\nPress Enter to submit.\n',
                     width=250, height=100)
 # the visualization plot
-p = createPlot(pd.DataFrame(), pd.DataFrame())
+p = createPlot()
 
 # a table of with all the genes in the match files, and how many isoforms in each gene
 geneColumns = [
