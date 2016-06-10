@@ -1,18 +1,12 @@
 import os
-import sys
-import optparse
-import re        # regular expressions
+import re
 import string
 
 from tt_log import logger
 
-import numpy as np
-import cPickle as pickle
-
 import Annotations as anno
-import Best        as best
-import Cluster     as cl
-import CigarString as cs
+import Best as best
+import Cluster as cl
 import pandas as pd
 from sklearn.cluster import KMeans
 
@@ -22,18 +16,18 @@ COLORS = ['#52B3D9', '#BE90D4', '#446CB3', '#86E2D5', '#F5D76E',
 
 MIN_REGION_SIZE = 50
 FASTA_WRAP = 60                 # bases per fasta line
-REGEX_NAME = re.compile ('(c\d+)')      # cluster ID in cluster name
-REGEX_LEN  = re.compile ('\/(\d+)$')     # cluster length in cluster name
-COMPLTAB   = string.maketrans ('ACGTacgt', 'TGCAtgca')     # for reverse-complementing reads
+REGEX_NAME = re.compile('(c\d+)')      # cluster ID in cluster name
+REGEX_LEN  = re.compile('\/(\d+)$')     # cluster length in cluster name
+COMPLTAB   = string.maketrans('ACGTacgt', 'TGCAtgca')     # for reverse-complementing reads
 
 # hold the annotList in the RAM, which contains information of reference transcripts
 def getAnnotations (opt):
     if opt.format == 'pickle':
-        annotList   = anno.AnnotationList.fromPickle (opt.gtf)
+        annotList   = anno.AnnotationList.fromPickle(opt.gtf)
     elif opt.format == 'alt':
-        annotList   = anno.AnnotationList (opt.gtf, altFormat=True)
+        annotList   = anno.AnnotationList(opt.gtf, altFormat=True)
     else:     # standard format
-        annotList = anno.AnnotationList (opt.gtf)
+        annotList = anno.AnnotationList(opt.gtf)
 
     return annotList
 

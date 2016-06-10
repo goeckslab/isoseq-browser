@@ -6,7 +6,7 @@ ACTIVATE_ENV=source activate $(ENV_NAME)
 
 run: env gencode.vM9.annotation.gtf
 	# python matchAnnot.py --gtf gencode.vM9.annotation.gtf --outpickle True example.sam > example.pickle
-	$(ACTIVATE_ENV) && PYTHONPATH=./dep bokeh serve --show browse.py
+	$(ACTIVATE_ENV) && PYTHONPATH=./dep:. bokeh serve --show browse.py
 
 # Set up the environment and dependencies.
 env:
@@ -21,9 +21,9 @@ gencode.vM9.annotation.gtf:
 	gunzip gencode.vM9.annotation.gtf.gz
 
 # Download and unzip hg19 annotation.
-gencode.v24lift37.annotation.gtf:
-	wget ftp://ftp.sanger.ac.uk/pub/gencode/Gencode_human/release_24/GRCh37_mapping/gencode.v24lift37.annotation.gtf.gz
-	gunzip gencode.v24lift37.annotation.gtf.gz
+gencode.v24.chr_patch_hapl_scaff.annotation.gtf:
+	wget ftp://ftp.sanger.ac.uk/pub/gencode/Gencode_human/release_24/gencode.v24.chr_patch_hapl_scaff.annotation.gtf.gz
+	gunzip gencode.v24.chr_patch_hapl_scaff.annotation.gtf.gz
 
 clean:
 	rm -f env

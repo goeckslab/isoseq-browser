@@ -1,14 +1,8 @@
-import os, sys
-sys.path.append(os.getcwd())
-
-import getGene
 from getGene import *
 from bokeh.plotting import Figure
-from bokeh.models import ColumnDataSource, HoverTool, VBox, HBox, VBoxForm
+from bokeh.models import ColumnDataSource, HoverTool, HBox, VBoxForm
 from bokeh.io import curdoc
-from bokeh.models.widgets import Slider, Select, TextInput, Button, PreText, DataTable, TableColumn
-from sklearn.cluster import KMeans
-import pandas as pd
+from bokeh.models.widgets import Slider, Select, TextInput, PreText, DataTable, TableColumn
 from collections import Counter
 
 PLOT_WIDTH = 1200                                           # the width of plott
