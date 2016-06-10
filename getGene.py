@@ -28,8 +28,6 @@ COMPLTAB   = string.maketrans ('ACGTacgt', 'TGCAtgca')     # for reverse-complem
 
 # hold the annotList in the RAM, which contains information of reference transcripts
 def getAnnotations (opt):
-    omits = [] if opt.omit is None else opt.omit.split(',')            # transcripts which must not be included
-
     if opt.format == 'pickle':
         annotList   = anno.AnnotationList.fromPickle (opt.gtf)
     elif opt.format == 'alt':
@@ -88,6 +86,12 @@ def getGeneFromAnnotation (opt, tranList, exonList):
 
     return tranList, exonList
 
+def getMatchedIsoforms (opt):
+    clusterDict = dict()
+    for matchFile in opt.matches:
+        clusterDict[matchFile] = cl.ClusterDict.fromPickle (matchFile)
+    return clusterDict
+
 def getGeneFromMatches (opt, tranList, exonList):
     '''Add to lists of transcripts and exons: clusters which matched gene of interest.'''
 
@@ -102,7 +106,10 @@ def getGeneFromMatches (opt, tranList, exonList):
 
     for matchFile in opt.matches:                                      # --matches may have been specified more thn once
 
-        clusterDict = cl.ClusterDict.fromPickle (matchFile)            # pickle file produced by matchAnnot.py
+        if opt.clusterDict:
+            clusterDict = opt.clusterDict[matchFile]
+        else:
+            clusterDict = cl.ClusterDict.fromPickle (matchFile)            # pickle file produced by matchAnnot.py
 
         for cluster in clusterDict.getClustersForGene(opt.gene):       # cluster is Cluster object
             totClusters += 1

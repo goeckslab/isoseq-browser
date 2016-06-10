@@ -17,36 +17,16 @@ REFERENCE_COLOR = "#22313F"                                 # the color of Refer
 MATCH_COLOR = "#52B3D9"                                     # the color of matched isoforms
 
 # Select isoforms of a particular gene
-def selectGene(opt):
+def selectGene(opt, isAnnot, isMatch):
     tranList = list()                                      # list of Transcript objects
     exonList = list()                                      # list of Exon objects
-    global isAnnot, isMatch                                # whether annotation transcripts or matched isoforms are in the inputs
-    if opt.gtf is not None:
+    if isAnnot:
         try:
-            getGeneFromAnnotation (opt, tranList, exonList)                 # find transcripts, exons of the gene in the reference database
-            isAnnot = True
-        except RuntimeError:                                                # if gene is not in the annotation file
-            Console.text = 'Console:\ngene %s is not in the \nannotation file' % opt.gene
-            isAnnot = False
-        except IOError:                                                     # if annotation file is not found
-            Console.text = 'Console:\nannotations file %s is not found' % opt.gtf
-            isAnnot = False
-    if opt.matches is not None:
-        try:
-            Console.text = 'Console:\nReading pickle file...'
-            getGeneFromMatches (opt, tranList, exonList)                    # find transcripts, exons of the gene in the matched isoforms
-            isMatch = True
-        except RuntimeError:                                                # if gene is not in the matched file
-            Console.text = 'Console:\ngene %s is not in the \nmatch file' % opt.gene
-            isMatch = False
-        except IOError:                                                     # if mached file is not found
-            Console.text = 'Console:\nannotations file %s is not found' % opt.matches
-            isMatch = False
-
-    if len(exonList) == 0:                                                  # if there is no exons in the annotation or match files
-        Console.text = 'Console:\nno exons found for gene %s \nin annotation or match files' % opt.gene
-        raise RuntimeError ('Console:\nno exons found for gene %s \nin annotation or match files' % opt.gene)
-        return
+            getGeneFromAnnotation (opt, tranList, exonList)
+        except RuntimeError:
+            Console.text = 'Console:\n%s not found in annotation \nfile' % opt.gene
+    if isMatch:
+        getGeneFromMatches (opt, tranList, exonList)
     return tranList, exonList
 
 def getChromosome(tranList):                                # find out which chromosome does the gene locate on
@@ -57,26 +37,24 @@ def getChromosome(tranList):                                # find out which chr
             break
     return chromosome
 
-def howManyIsoforms(matchList):
+def howManyIsoforms(clusterDict, matchList):
     allGenes = Counter()                                        # create a counter hastable(dictionary) object
     for matchFile in matchList:
-        try:
-            clusterDict = cl.ClusterDict.fromPickle(matchFile)
-            geneDict = dict()                                               # how many isoforms for each gene
-            myDict = clusterDict.getGeneDict()
-            for key, val in myDict.iteritems():
-                geneDict.setdefault(key, len(val))
-            geneDict = Counter(geneDict)
-            allGenes = allGenes + geneDict                                  # add information of new match file
-        except IOError:
-            Console.text = 'Console:\nNo such file: %s\n change gene to restart' %matchFile
-            break
+        geneDict = dict()
+        myDict = clusterDict[matchFile].getGeneDict()
+        for key, val in myDict.iteritems():
+            geneDict.setdefault(key, len(val))                          # how many isoforms for each gene
+        geneDict = Counter(geneDict)
+        allGenes = allGenes + geneDict                                  # combine every match files
     geneSource.data = dict(                                             # update the table in visualization
         Gene = allGenes.keys(),
         Isoforms = allGenes.values(),
     )
 
 def updateGene(attrname, old, new):                     # update visualization if the gene changes
+    opt.gene = Gene.value.strip()
+    matchList = Matches.value.strip().split(',')
+    opt.matches = matchList
     p.title = "Transcript of %s" % Gene.value.strip()                           # update the title of plot
     # Reset when updating genes
     blockDict = dict(top=[], bottom=[], left=[], right=[], exon=[],
@@ -89,44 +67,57 @@ def updateGene(attrname, old, new):                     # update visualization i
     source.data = sourceDict
     codonSource.data = codonDict
     # create and display a list of all the genes
-    Console.text = 'Console:\nLoading genes...'
-    global matchList                                                # update visuzlization  if the match files changes, return True if update is needed
-    try:
-        if matchList != Matches.value.strip().split(','):
-            matchList = Matches.value.strip().split(',')
-            howManyIsoforms(matchList)
-    except NameError:
-        matchList = Matches.value.strip().split(',')
-        howManyIsoforms(matchList)
-
 
     # load the reference transcripts
-    global Annotations, gtf, opt
-    Console.text = 'Console:\nReading annotation file...'
-    try:                                                                    # if it's not the first time make the plot
-        Annotations, gtf
-        if gtf != GTF.value.strip():                                        # and if the annotation file changes
-            try:
-                Annotations = getAnnotations(getParams(GTF.value.strip(),   # get the lists of transcripts in annot file
-                                None, None))                                # hold it in RAM for quicker respond when changing the gene
-            except IOError:                                               # annotation file not found
-                Console.text = 'Console:\nNo such file: %s' %str(gtf)
-                Annotations = None
-            gtf = GTF.value.strip()
-    except NameError:                                   # if it's the first time make the plot, do the same
-        gtf = GTF.value.strip()
+    Console.text = 'Console:\nReading pickle file...'
+    if opt.clusterDict is None:
         try:
-            Annotations = getAnnotations(getParams(gtf, None, None))
+            clusterDict = getMatchedIsoforms(getParams(None, matchList, None))
+            opt.clusterDict = clusterDict
+            howManyIsoforms(clusterDict, matchList)
+            isMatch = True
         except IOError:
-            Console.text = 'Console:\nNo such file: %s' %str(gtf)
-            Annotations = None
+            Console.text = 'Console:\none of the matched file \n%s is not found' % matchList
+            isMatch = False
+    else:
+        if set(opt.clusterDict.keys()) != set(matchList):
+            try:
+                clusterDict = dict()
+                clusterDict = getMatchedIsoforms(getParams(None, matchList, None))
+                opt.clusterDict = clusterDict
+                howManyIsoforms(clusterDict, matchList)
+                isMatch = True
+            except IOError:
+                Console.text = 'Console:\none of the matched file \n%s is not found' % matchList
+                isMatch = False
+        else:
+            isMatch = True
 
-    opt = getParams('../' + GTF.value.strip(), matchList,               # get the options from inputs
-            Gene.value.strip(), forMat=Format.value.strip(), annotations=Annotations)
-    opt.gene = Gene.value.strip()
+    Console.text = 'Console:\nReading annotation file...'
+    if opt.annotations is None:
+        try:
+            opt.gtf = GTF.value.strip()
+            Annotations = getAnnotations(opt)           # get the lists of transcripts in annot file, hold it in RAM for quicker respond when changing the gene
+            opt.annotations = Annotations
+            isAnnot = True
+        except IOError:
+            Console.text = 'Console:\nannotations file \n%s is not found' % opt.gtf
+            isAnnot = False
+    else:
+        if opt.gtf != GTF.value.strip():
+            try:
+                opt.gtf = GTF.value.strip()
+                Annotations = getAnnotations(opt)
+                opt.annotations = Annotations
+                isAnnot = True
+            except IOError:
+                Console.text = 'Console:\nannotations file \n%s is not found' % opt.gtf
+                isAnnot = False
+        else:
+            isAnnot = True
 
-    global chromosome
-    tranList, exonList = selectGene(opt)                    # select transcripts by gene
+    global length, colorDF
+    tranList, exonList = selectGene(opt, isAnnot, isMatch)                    # select transcripts by gene
     chromosome = getChromosome(tranList)                    # find out which chromosome does the gene locate
 
     forwardStrand = '-' if opt.flip else '+'
@@ -145,27 +136,26 @@ def updateGene(attrname, old, new):                     # update visualization i
         if exon.tran.annot:
             blocks[exon.block].annot = True
 
-    global length, colorDF
     length = len(tranNames)
     Console.text = 'Console:\nCreating plot...'
 
-    p.plot_height = Height.value*2*(length+4)                   # set the height of plot according to the length of transcripts
+    p.plot_height = Height.value*2*(length+4)       # set the height of plot according to the length of transcripts
 
     p.y_range.factors = tranNames[::-1]             # set the y axis tick to the transcripts names
 
-    Console.text = 'grouping...'
+    Console.text = 'Console:\nGrouping...'
     if Group.value == "on" and isMatch is True:
         colorDF = groupTran(tranList, exonList, 15)          # group the transcripts by similarities
     else:
         colorDF = None
-    sourceDict = getExonData(exonList, colorDF)                          # get the data of each isoform that can be directly used to plot, put it into a global dataframe
+    sourceDict = getExonData(exonList, colorDF)                  # get the data of each isoform that can be directly used to plot
 
     codonDict = plotStartStop (tranList, blocks)
 
     codonSource.data = codonDict
     source.data = sourceDict
     # update the data used for plotting boundaries and hover block
-    blockDict = getBoundaryData(blocks)                                 # get the data of each block that can be directly used to plot, put it into a global dataframe
+    blockDict = getBoundaryData(blocks, chromosome)              # get the data of each block that can be directly used to plot
     blockSource.data = blockDict
 
     if isAnnot == False:
@@ -242,7 +232,7 @@ def getColorFromDF(exonName, colorDF):
     return color
 
 # find out the position of boundaries
-def getBoundaryData(blocks):
+def getBoundaryData(blocks, chromosome):
     blockDict = dict(top=[], bottom=[], left=[], right=[], exon=[],
                     start=[], end=[], chromosome=[], xs=[], ys=[],
                     hover_fill_color=[], boundary=[])
@@ -325,7 +315,7 @@ class getParams(object):
     def __init__(self, gtf, matches, gene, forMat="standard", omit=None,
                  show=None, howmany=None, nodups=None, minlen=None, maxlen=None, output="exon.png",
                  flip=None, yscale=1.0, details=None, fasta=None, title=None, notes=None, full=None,
-                 partial=None, highsupport=None, annotations=None):
+                 partial=None, highsupport=None, annotations=None, clusterDict=None):
         self.gtf = gtf
         self.matches = matches
         self.gene = gene
@@ -347,11 +337,12 @@ class getParams(object):
         self.full = full
         self.partial = partial
         self.annotations = annotations
+        self.clusterDict = clusterDict
 
 # create all kinds of widgets
-GTF = TextInput(title="Enter the name of annotation file", value="gencode.vM9.annotation.gtf")
+GTF = TextInput(title="Enter the name of annotation file", value="gencode.v24.chr_patch_hapl_scaff.annotation.gtf")
 Format = TextInput(title="Enter the format of annotation file, standard is gtf", value="standard")
-Matches = TextInput(title="Enter the name of pickle files from MatchAnnot,e.g. of multiple files: a.pickle,b.pickle", value="matches.pickle")
+Matches = TextInput(title="Enter the name of pickle files from MatchAnnot,e.g. of multiple files: a.pickle,b.pickle", value="mcf7_matchAnnot_results.pickle")
 Gene = TextInput(title="Select gene to visualize")
 Alpha = Slider(title="Alpha value of exons", value=1.0, start=0, end=1.0, step=0.1)
 Full = Slider(title="Full support threshold", value=0, start=0, end=30, step=1.0)
@@ -363,6 +354,8 @@ Width = Slider(title="The width of plot", value=1200, start=400, end=1500, step=
 Save = TextInput(title="Enter the folder name to data in Fasta", value=None)
 
 # the data used for plotting isoforms, boundaries and gene
+matchList = Matches.value.strip().split(',')
+opt = getParams(GTF.value.strip(), matchList, None, forMat=Format.value.strip())
 
 blockDict = dict(top=[], bottom=[], left=[], right=[], exon=[],
                 start=[], end=[], chromosome=[], xs=[], ys=[],
