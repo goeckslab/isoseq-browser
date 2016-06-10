@@ -18,7 +18,7 @@ Isoseq-browser is an gene isoform visualization tool. It is build on [bokeh](htt
 4. Run Isoseq-browser:
 
 ```
-    make run Makefile
+    make run
 ```
 
 # How to run Isoseq-browser
@@ -26,7 +26,7 @@ Isoseq-browser is an gene isoform visualization tool. It is build on [bokeh](htt
 2. Run Isoseq-browser:
 
 ```
-    make run Makefile
+    make run
 ```
 
 2. Enter the annotation file and matched pickle file
