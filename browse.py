@@ -2,13 +2,14 @@ from getGene import *
 from bokeh.plotting import Figure
 from bokeh.models import ColumnDataSource, HoverTool, HBox, VBoxForm
 from bokeh.io import curdoc
-from bokeh.models.widgets import Slider, Select, TextInput, PreText, DataTable, TableColumn
+from bokeh.models.widgets import Slider, Select, TextInput, PreText, DataTable, TableColumn, CheckboxGroup
 from collections import Counter
 
 PLOT_WIDTH = 1200                                           # the width of plott
 TITLE_FONT_SIZE = "25pt"                                    # font size of plot title
-REFERENCE_COLOR = "#22313F"                                 # the color of Reference transcripts
-MATCH_COLOR = "#52B3D9"                                     # the color of matched isoforms
+COLORS = ["#22313F", '#52B3D9', '#BE90D4', '#446CB3', '#86E2D5', '#F5D76E',
+            '#F1A9A0', '#663399', '#87D37C', '#26C281', '#96281B',
+            '#4ECDC4', '#F4B350', '#6C7A89', '#C5EFF7', '#EF4836']
 
 # Select isoforms of a particular gene
 def selectGene(opt, isAnnot, isMatch):
@@ -135,7 +136,7 @@ def updateGene(attrname, old, new):                     # update visualization i
     p.y_range.factors = tranNames[::-1]             # set the y axis tick to the transcripts names
 
     Console.text = 'Console:\nGrouping...'
-    if Group.value == "on" and isMatch is True:
+    if 1 in Group.active and isMatch is True:
         colorDF = groupTran(tranList, exonList, 15)          # group the transcripts by similarities
     else:
         colorDF = None
@@ -164,10 +165,22 @@ def updateFP(attrname, old, new):
 
 # update the number of groups
 def updateGroup(attrname, old, new):
-    colors = list()
     sourceDict = source.data
-    colors = [getColorFromDF(tran, colorDF) for tran in sourceDict['tran']]
-    sourceDict['colors'] = colors
+    if 0 in Group.active:
+        sourceDict['colors'] = sourceDict['fileColor']
+    else:
+        if 1 in Group.active:
+            colors = list()
+            colors = [getColorFromDF(tran, colorDF) for tran in sourceDict['tran']]
+            sourceDict['colors'] = colors
+        else:
+            colors = list()
+            for i in sourceDict['annot']:
+                if i is True:
+                    colors.append(COLORS[0])
+                else:
+                    colors.append(COLORS[1])
+            sourceDict['colors'] = colors
     source.data = sourceDict
 
 # update the width of the each isoform
@@ -184,29 +197,33 @@ def updateHeightWidth(attrname, old, new):
 # get the data for plotting exons (start, end position for example)
 def getExonData(exonList, colorDF):
     sourceDict = dict(name=[], xs=[], ys=[], colors=[], line_alpha=[], width=[], height=[],
-                        tran=[], full=[], partial=[], annot=[], QScore=[], start=[], end=[])
+                        tran=[], full=[], partial=[], annot=[], QScore=[], start=[], end=[],
+                        fileColor=[])
     columns = ['name', 'xs', 'ys', 'colors', 'QScore',
-                'start', 'end', 'tran', 'full', 'partial', 'annot']
+                'start', 'end', 'tran', 'full', 'partial', 'annot', 'fileColor']
     for myExon in exonList:
         exonSize = myExon.end - myExon.start + 1
         adjStart = myExon.adjStart
-        if colorDF is not None:
-            color = getColorFromDF(myExon.tran.name, colorDF)           # find out what group does the exon belongs
-        else:                                                           # if the grouping effect is off, paint default color
-            if myExon.tran.annot:
-                color = REFERENCE_COLOR
-            else:
-                color = MATCH_COLOR
+
+        if 0 in Group.active:
+            color = COLORS[myExon.tran.source[0]]
+        else:
+            if colorDF is not None:
+                color = getColorFromDF(myExon.tran.name, colorDF)           # find out what group does the exon belongs
+            else:                                                           # if the grouping effect is off, paint default color
+                if myExon.tran.annot:
+                    color = COLORS[0]
+                else:
+                    color = COLORS[1]
         xs = (adjStart, adjStart+exonSize)
         ys = (length-(myExon.tran.tranIx), length-(myExon.tran.tranIx))
         values = [myExon.name, xs, ys, color,
                     myExon.QScore, myExon.start, myExon.end,
                     myExon.tran.name, myExon.full, myExon.partial,
-                    myExon.tran.annot]
-        counter = 0
-        while counter < len(columns):
-            sourceDict[columns[counter]].append(values[counter])
-            counter += 1
+                    myExon.tran.annot, COLORS[myExon.tran.source[0]]]
+
+        for ix, col in enumerate(columns):
+            sourceDict[columns[ix]].append(values[ix])
 
     sourceDict['line_alpha'] = [1 for x in range(len(sourceDict['xs']))]
     sourceDict['height'] = [Height.value for x in range(len(sourceDict['xs']))]
@@ -370,7 +387,7 @@ Gene = TextInput(title="Select gene to visualize")
 Alpha = Slider(title="Alpha value of exons", value=1.0, start=0, end=1.0, step=0.1)
 Full = Slider(title="Full support threshold", value=0, start=0, end=30, step=1.0)
 Partial = Slider(title="Partial support threshold", value=0, start=0, end=50, step=1.0)
-Group = Select(title="Group isoform or not", value="on", options=["on", "off"])
+Group = CheckboxGroup(labels=["Group by file", "Group by similarity"], active=[1])
 Cluster = Slider(title="The number of groups", value=3, start=1, end=15, step=1.0)
 Height = Slider(title="The height of transcripts", value=20, start=5, end=30, step=1)
 Width = Slider(title="The width of plot", value=1200, start=400, end=1500, step=50)
@@ -384,7 +401,8 @@ blockDict = dict(top=[], bottom=[], left=[], right=[], exon=[],
                 start=[], end=[], chromosome=[], xs=[], ys=[],
                 hover_fill_color=[], boundary=[])
 sourceDict = dict(name=[], xs=[], ys=[], colors=[], line_alpha=[], width=[], height=[],
-                    tran=[], full=[], partial=[], annot=[], QScore=[], start=[], end=[])
+                    tran=[], full=[], partial=[], annot=[], QScore=[], start=[], end=[],
+                    fileColor=[])
 geneDict = dict(Gene=[], Isoforms=[])
 codonDict = dict(x=[], y=[], color=[], size=[])
 
@@ -432,6 +450,7 @@ Full.on_change('value', updateFP)
 Partial.on_change('value', updateFP)
 Alpha.on_change('value', updateFP)
 Cluster.on_change('value', updateGroup)
+Group.on_change('active', updateGroup)
 Save.on_change('value', saveFasta)
 Height.on_change('value', updateHeightWidth)
 Width.on_change('value', updateHeightWidth)

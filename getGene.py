@@ -62,7 +62,8 @@ def getGeneFromAnnotation (opt, tranList, exonList):
 
         if tran.name not in omits:                          # if not in ignore list
 
-            myTran = Transcript(tran.name, start=tran.start, end=tran.end, annot=True, ID=tran.ID)
+            myTran = Transcript(tran.name, start=tran.start, end=tran.end,
+                            annot=True, ID=tran.ID, source=(0, opt.gtf))
 
             if hasattr(tran, 'startcodon'):
                 myTran.startcodon = tran.startcodon
@@ -98,7 +99,7 @@ def getGeneFromMatches (opt, tranList, exonList):
     localList = list()                                                 # temporary list of clusters
     totClusters = 0
 
-    for matchFile in opt.matches:                                      # --matches may have been specified more thn once
+    for ix, matchFile in enumerate(opt.matches):                            # --matches may have been specified more thn once
 
         if opt.clusterDict:
             clusterDict = opt.clusterDict[matchFile]
@@ -106,8 +107,8 @@ def getGeneFromMatches (opt, tranList, exonList):
             clusterDict = cl.ClusterDict.fromPickle (matchFile)            # pickle file produced by matchAnnot.py
 
         for cluster in clusterDict.getClustersForGene(opt.gene):       # cluster is Cluster object
+            cluster.source = (ix+1, matchFile)
             totClusters += 1
-
             match = re.search (REGEX_NAME, cluster.name)
 
             if match is not None and match.group(1) in shows:          # if this is a force-include cluster
@@ -157,7 +158,7 @@ def getGeneFromMatches (opt, tranList, exonList):
 
     for ent in localList:
         cluster = ent[0]
-        myTran = Transcript(cluster.name, score=cluster.bestScore)
+        myTran = Transcript(cluster.name, score=cluster.bestScore, source=cluster.source)
         myTran.chr = cluster.chr
 
         full, partial = cluster.getFP()
@@ -579,7 +580,8 @@ def reduceNameLength(tranNames):
 class Transcript (object):
     '''Just a struct actually, containing data about a transcript.'''
 
-    def __init__ (self, name, start=None, end=None, score=None, full=None, partial=None, annot=False, ID=None, chr=None):
+    def __init__ (self, name, start=None, end=None, score=None, full=None,
+                    partial=None, annot=False, ID=None, chr=None, source=None):
 
         self.name    = name
         self.score   = score
@@ -594,6 +596,7 @@ class Transcript (object):
         self.blocks  = set()            # blocks where this transcript has exon(s)
         self.regions = set()            # regions where this transcript has exon(s)
         self.chr = chr
+        self.source = source
         # What's the difference between a block and a region? Every
         # exon boundary defines a new region. A new block occurs only
         # when exon coverage transitions from 0 to >0. The example
