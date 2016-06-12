@@ -26,7 +26,7 @@ def selectGene(opt, isAnnot, isMatch):
 def getChromosome(tranList):                                # find out which chromosome does the gene locate on
     chromosome = None
     for tran in tranList:
-        if tran.annot is False:
+        if tran.annot is False:                             # only annotation file has this information
             chromosome = tran.chr
             break
     return chromosome
@@ -51,7 +51,7 @@ def updateGene(attrname, old, new):                     # update visualization i
     opt.matches = matchList
     p.title = "Transcript of %s" % Gene.value.strip()                           # update the title of plot
     # Reset when updating genes
-    blockDict = dict(top=[], bottom=[], left=[], right=[], exon=[],
+    blockDict = dict(top=[], bottom=[], left=[], right=[], exon=[],             # all the data when updating plot
                     start=[], end=[], chromosome=[], xs=[], ys=[],
                     hover_fill_color=[], boundary=[])
     sourceDict = dict(name=[], xs=[], ys=[], colors=[], line_alpha=[], width=[], height=[],
@@ -64,17 +64,17 @@ def updateGene(attrname, old, new):                     # update visualization i
 
     # load the reference transcripts
     Console.text = 'Console:\nReading pickle file...'
-    if opt.clusterDict is None:
+    if opt.clusterDict is None:                                                 # if it's the first time to load up pickle file
         try:
             clusterDict = getMatchedIsoforms(getParams(None, matchList, None))
-            opt.clusterDict = clusterDict
-            howManyIsoforms(clusterDict, matchList)
-            isMatch = True
-        except IOError:
+            opt.clusterDict = clusterDict                                       # hold pickle file dictionary in RAM
+            howManyIsoforms(clusterDict, matchList)                             # find out how many isoforms for each gene
+            isMatch = True                                                      # matched file is present
+        except IOError:                                                         # if the file is not found in directory
             Console.text = 'Console:\none of the matched file \n%s is not found' % matchList
             isMatch = False
     else:
-        if set(opt.clusterDict.keys()) != set(matchList):
+        if set(opt.clusterDict.keys()) != set(matchList):            # if the matched files are updated
             try:
                 clusterDict = dict()
                 clusterDict = getMatchedIsoforms(getParams(None, matchList, None))
@@ -121,20 +121,17 @@ def updateGene(attrname, old, new):                     # update visualization i
     else:
         exonList.sort(key=lambda x: x.end, reverse=True)   # sort the list by decreasing end position
         blocks = assignBlocksReverse (opt, exonList)       # assign each exon to a block -- backwards
-
-    findRegions (tranList)                       # determine regions occupied by each transcript
-    tranNames = orderTranscripts (tranList)                 # get the names of transcripts, placed them in the right order
-    tranNames = reduceNameLength(tranNames)                      # if the length of name is too long, reduce it
-
     for exon in exonList:
         if exon.tran.annot:
             blocks[exon.block].annot = True
+    findRegions (tranList)                       # determine regions occupied by each transcript
+    tranNames = orderTranscripts (tranList)                 # get the names of transcripts, placed them in the right order
+    tranNames = reduceNameLength(tranNames)                      # if the length of name is too long, reduce it
 
     length = len(tranNames)
     Console.text = 'Console:\nCreating plot...'
 
     p.plot_height = Height.value*2*(length+4)       # set the height of plot according to the length of transcripts
-
     p.y_range.factors = tranNames[::-1]             # set the y axis tick to the transcripts names
 
     Console.text = 'Console:\nGrouping...'
@@ -180,6 +177,9 @@ def updateHeightWidth(attrname, old, new):
     sourceDict = source.data
     sourceDict['height'] = [Height.value for x in range(len(sourceDict['xs']))]
     source.data = sourceDict
+    codonDict = codonSource.data
+    codonDict['size'] = [Height.value*1.2 for x in range(len(codonDict['x']))]
+    codonSource.data = codonDict
 
 # get the data for plotting exons (start, end position for example)
 def getExonData(exonList, colorDF):
@@ -191,8 +191,8 @@ def getExonData(exonList, colorDF):
         exonSize = myExon.end - myExon.start + 1
         adjStart = myExon.adjStart
         if colorDF is not None:
-            color = getColorFromDF(myExon.tran.name, colorDF)
-        else:
+            color = getColorFromDF(myExon.tran.name, colorDF)           # find out what group does the exon belongs
+        else:                                                           # if the grouping effect is off, paint default color
             if myExon.tran.annot:
                 color = REFERENCE_COLOR
             else:
@@ -236,7 +236,7 @@ def getBoundaryData(blocks, chromosome):
     columns = ['boundary', 'right', 'left', 'xs', 'start', 'end', 'exon', 'hover_fill_color']
     exonCounter = 1
 
-    for bound in blocks:
+    for bound in blocks:                                # infomation for the mouse hover effect on blocks
         if bound.annot:
             exon = exonCounter
             color = 'red'
@@ -269,7 +269,7 @@ def greaterFP(pos):
     annot = sourceDict['annot']
     if annot[pos] is False:
         if sourceDict['full'][pos] < Full.value or sourceDict['partial'][pos] < Partial.value:
-            return alphaVal
+            return alphaVal                 # change alpha values of those below alpha threshold
         else:
             return 1.0
     else:
@@ -277,12 +277,13 @@ def greaterFP(pos):
 
 # save the transcripts to .fasta file, the function is copied from MatchAnnot
 def saveFasta(attrname, old, new):
-    console.text = 'Console:\nSaving...'
+    Console.text = 'Console:\nSaving...'
     opt.fasta = Save.value.strip()
     tranList = list()
     exonList = list()
     getGeneFromMatches (opt, tranList, exonList)
     opt.fasta = None
+    Console.text = 'Console:\nSuccessfully saved'
 
 # create the visualization plot
 def createPlot():
@@ -299,10 +300,38 @@ def createPlot():
                 line_width="height", line_alpha='line_alpha')
     p.multi_line(xs="xs", ys="ys", source=blockSource, color="black",                       # plot boundaries
                 line_width=2, line_alpha=0.4, line_dash="dotted")
-    p.inverted_triangle(x="x", y="y", color="color", source=codonSource, size=Height.value+1, alpha=0.5)
+    p.inverted_triangle(x="x", y="y", color="color", source=codonSource, size='size', alpha=0.5)
     p.add_tools(HoverTool(tooltips=[("chromosome", "@chromosome"),("exon", "@exon"),        # make mouse hover work
                 ("start", "@start"), ("end", "@end")], renderers=[quad]))
     return p
+
+def plotStartStop (tranList, blocks):
+    '''Add start/stop codons to plot.'''
+    codonDict = dict(x=[], y=[], color=[])
+    length = len(tranList)
+    for tran in tranList:
+        if tran.annot:                             # only annotations know about start/stops
+            if hasattr(tran, 'startcodon'):
+                codonDict['color'].append('green')
+                xPos = findCodon(tran.startcodon, blocks)
+                codonDict['x'].append(xPos)
+                codonDict['y'].append(length - tran.tranIx)
+            if hasattr(tran, 'stopcodon'):
+                codonDict['color'].append('red')
+                xPos = findCodon(tran.stopcodon, blocks)
+                codonDict['x'].append(xPos)
+                codonDict['y'].append(length - tran.tranIx)
+    codonDict['size'] = [Height.value*1.2 for x in range(len(codonDict['x']))]
+    return codonDict
+
+def findCodon (posit, blocks):
+    '''Add a codon mark to the plot.'''
+    for blk in blocks:
+
+        if blk.start <= posit and blk.end >= posit or \
+                blk.start >= posit and blk.end <= posit:      # check in both strand directions
+            xPos = blk.boundary - abs(blk.end-posit)
+    return xPos
 
 # a class containing all the input parameters
 class getParams(object):
@@ -334,9 +363,9 @@ class getParams(object):
         self.clusterDict = clusterDict
 
 # create all kinds of widgets
-GTF = TextInput(title="Enter the name of annotation file", value="gencode.v24.chr_patch_hapl_scaff.annotation.gtf")
+GTF = TextInput(title="Enter the name of annotation file", value="gencode.vM9.annotation.gtf")
 Format = TextInput(title="Enter the format of annotation file, standard is gtf", value="standard")
-Matches = TextInput(title="Enter the name of pickle files from MatchAnnot,e.g. of multiple files: a.pickle,b.pickle", value="mcf7_matchAnnot_results.pickle")
+Matches = TextInput(title="Enter the name of pickle files from MatchAnnot,e.g. of multiple files: a.pickle,b.pickle", value="matches.pickle")
 Gene = TextInput(title="Select gene to visualize")
 Alpha = Slider(title="Alpha value of exons", value=1.0, start=0, end=1.0, step=0.1)
 Full = Slider(title="Full support threshold", value=0, start=0, end=30, step=1.0)
@@ -357,7 +386,7 @@ blockDict = dict(top=[], bottom=[], left=[], right=[], exon=[],
 sourceDict = dict(name=[], xs=[], ys=[], colors=[], line_alpha=[], width=[], height=[],
                     tran=[], full=[], partial=[], annot=[], QScore=[], start=[], end=[])
 geneDict = dict(Gene=[], Isoforms=[])
-codonDict = dict(x=[], y=[], color=[])
+codonDict = dict(x=[], y=[], color=[], size=[])
 
 blockSource = ColumnDataSource(data=blockDict)
 source = ColumnDataSource(data=sourceDict)

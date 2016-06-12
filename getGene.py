@@ -381,33 +381,6 @@ def findRegions (tranList):
 
     return
 
-def plotStartStop (tranList, blocks):
-    '''Add start/stop codons to plot.'''
-    codonDict = dict(x=[], y=[], color=[])
-    length = len(tranList)
-    for tran in tranList:
-        if tran.annot:                             # only annotations know about start/stops
-            if hasattr(tran, 'startcodon'):
-                codonDict['color'].append('green')
-                xPos = findCodon(tran.startcodon, blocks)
-                codonDict['x'].append(xPos)
-                codonDict['y'].append(length - tran.tranIx)
-            if hasattr(tran, 'stopcodon'):
-                codonDict['color'].append('red')
-                xPos = findCodon(tran.stopcodon, blocks)
-                codonDict['x'].append(xPos)
-                codonDict['y'].append(length - tran.tranIx)
-    return codonDict
-
-def findCodon (posit, blocks):
-    '''Add a codon mark to the plot.'''
-    for blk in blocks:
-
-        if blk.start <= posit and blk.end >= posit or \
-                blk.start >= posit and blk.end <= posit:      # check in both strand directions
-            xPos = blk.boundary - abs(blk.end-posit)
-    return xPos
-
 def orderTranscripts (tranList):
     '''
     Order the transcripts (i,e., assign each a Y coordinate) so similar
