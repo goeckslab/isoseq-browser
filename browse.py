@@ -1,6 +1,6 @@
 from getGene import *
 from bokeh.plotting import Figure
-from bokeh.models import ColumnDataSource, HoverTool, HBox, VBoxForm
+from bokeh.models import ColumnDataSource, HoverTool, HBox, VBoxForm, TapTool
 from bokeh.io import curdoc
 from bokeh.models.widgets import Slider, Select, TextInput, PreText, DataTable, TableColumn, CheckboxGroup
 from collections import Counter
@@ -53,12 +53,12 @@ def updateGene(attrname, old, new):                     # update visualization i
     p.title = "Transcript of %s" % Gene.value.strip()                           # update the title of plot
     # Reset when updating genes
     blockDict = dict(top=[], bottom=[], left=[], right=[], exon=[],             # all the data when updating plot
-                    start=[], end=[], chromosome=[], xs=[], ys=[],
-                    hover_fill_color=[], boundary=[])
+                    start=[], end=[], chromosome=[], xs=[], ys=[], boundary=[])
     sourceDict = dict(name=[], xs=[], ys=[], colors=[], line_alpha=[], width=[], height=[],
                         tran=[], full=[], partial=[], annot=[], QScore=[], start=[], end=[])
     codonDict = dict(x=[], y=[], color=[])
     blockSource.data = blockDict
+    allBlockSource.data = blockDict
     source.data = sourceDict
     codonSource.data = codonDict
     # create and display a list of all the genes
@@ -111,12 +111,12 @@ def updateGene(attrname, old, new):                     # update visualization i
         else:
             isAnnot = True
 
-    global length, colorDF
+    global length, colorDF, chromosome, strand
     tranList, exonList = selectGene(opt, isAnnot, isMatch)                    # select transcripts by gene
     chromosome = getChromosome(tranList)                    # find out which chromosome does the gene locate
 
-    forwardStrand = '-' if opt.flip else '+'
-    if exonList[0].strand == forwardStrand:
+    strand = exonList[0].strand
+    if exonList[0].strand == '+':
         exonList.sort(key=lambda x: x.start)               # sort the list by start position
         blocks = assignBlocks (opt, exonList)              # assign each exon to a block
     else:
@@ -147,9 +147,10 @@ def updateGene(attrname, old, new):                     # update visualization i
     codonSource.data = codonDict
     source.data = sourceDict
     # update the data used for plotting boundaries and hover block
-    blockDict = getBoundaryData(blocks, chromosome)              # get the data of each block that can be directly used to plot
+    blockDict, tranDict = getBoundaryData(blocks, chromosome)              # get the data of each block that can be directly used to plot
     blockSource.data = blockDict
-
+    allBlockSource.data = blockDict
+    tranSource.data = tranDict
     if isAnnot == False:
         Console.text = 'Console:\nSuccess! Annotation\n file is missing.'
     elif isMatch == False:
@@ -245,52 +246,81 @@ def getColorFromDF(exonName, colorDF):
 # find out the position of boundaries
 def getBoundaryData(blocks, chromosome):
     blockDict = dict(top=[], bottom=[], left=[], right=[], exon=[],
-                    start=[], end=[], chromosome=[], xs=[], ys=[],
-                    hover_fill_color=[], boundary=[])
+                    start=[], end=[], chromosome=[], xs=[], ys=[], boundary=[])
+    tranDict = dict(top=[], bottom=[], left=[], right=[])
     blockDict['xs'] = [(0, 0)]
     blockDict['ys'] = [(0, length+1)]
-    blockDict['left'] = [0]
-    columns = ['boundary', 'right', 'left', 'xs', 'start', 'end', 'exon', 'hover_fill_color']
+    columns = ['boundary', 'left', 'right', 'xs', 'start', 'end', 'exon']
     exonCounter = 1
-
+    numberOfBlocks = len(blocks)
     for bound in blocks:                                # infomation for the mouse hover effect on blocks
-        if bound.annot:
-            exon = exonCounter
-            color = 'red'
-            exonCounter += 1
-        else:
-            exon = None
-            color = 'blue'
-        values = [bound.boundary, bound.boundary, bound.boundary,
-                        (bound.boundary, bound.boundary), bound.start,
-                        bound.end, exon, color]
-        counter = 0
-
-        numberOfBlocks = len(blocks)
+        values = [bound.boundary, bound.boundary-bound.start+bound.end, bound.boundary,
+                (bound.boundary, bound.boundary), bound.start, bound.end, exonCounter]
         blockDict['top'] = [(length+1) for x in range(numberOfBlocks)]
         blockDict['bottom'] = [0 for x in range(numberOfBlocks)]
         blockDict['chromosome'] = [chromosome for x in range(numberOfBlocks)]
-
+        exonCounter += 1
+        counter = 0
         while counter < len(columns):
             blockDict[columns[counter]].append(values[counter])
             counter += 1
-    left = blockDict['left']
-    blockDict['left'] = left[:-1]
+    right = blockDict['right']
+    # # blockDict['left'] = left[:-1]
+    # # blockDict['right'] = left[1:]
     blockDict['ys'] = [(0, length+1) for x in range(numberOfBlocks+1)]
-    return blockDict
+
+    tranDict['top'] = [x+1.5 for x in range(length)]
+    tranDict['bottom'] = [x+0.5 for x in range(length)]
+    tranDict['left'] = [0 for x in range(length)]
+    tranDict['right'] = [max(right) for x in range(length)]
+    return blockDict, tranDict
 
 # find out which isoform is below full/partial threshold, which isoform is not
 def greaterFP(pos):
-    alphaVal = Alpha.value
     sourceDict = source.data
     annot = sourceDict['annot']
     if annot[pos] is False:
         if sourceDict['full'][pos] < Full.value or sourceDict['partial'][pos] < Partial.value:
-            return alphaVal                 # change alpha values of those below alpha threshold
+            return 0                 # change alpha values of those below alpha threshold
         else:
-            return 1.0
+            return 1
     else:
-        return 1.0
+        return 1
+
+def selection(attr, old, new):
+    if tranSource.selected['1d']['indices'] == []:
+        sourceDict = source.data
+        sourceDict['line_alpha'] = [1 for y in sourceDict['ys']]
+        source.data = sourceDict
+        blockSource.data = allBlockSource.data
+    else:
+        index = tranSource.selected['1d']['indices'][0]
+        sourceDict = source.data
+        alpha = [selectTran(index, y) for y in sourceDict['ys']]
+        sourceDict['line_alpha'] = alpha
+        source.data = sourceDict
+        blockDict = blockSource.data
+        blocks = list()
+        exons = list()
+        for i, yy in enumerate(sourceDict['ys']):
+            if yy[0] == index+1:
+                if strand == '+':
+                    start = sourceDict['start'][i]
+                    end = sourceDict['end'][i]
+                else:
+                    start = sourceDict['end'][i]
+                    end = sourceDict['start'][i]
+                boundary = sourceDict['xs'][i][1]
+                bound = Block(start, end, boundary)
+                blocks.append(bound)
+        bd, tr = getBoundaryData(blocks, chromosome)
+        blockSource.data = bd
+
+def selectTran(index, y):
+    if index+1 == y[0]:
+        return 1
+    else:
+        return 0.2
 
 # save the transcripts to .fasta file, the function is copied from MatchAnnot
 def saveFasta(attrname, old, new):
@@ -304,19 +334,21 @@ def saveFasta(attrname, old, new):
 
 # create the visualization plot
 def createPlot():
+    TOOLS="pan,wheel_zoom,save,reset,tap"
     p = Figure(plot_height=300, plot_width=Width.value, title="", y_range=[],
-                title_text_font_size=TITLE_FONT_SIZE)
+                title_text_font_size=TITLE_FONT_SIZE, webgl=True, tools=TOOLS)
     p.xgrid.grid_line_color = None                              # get rid of the grid in bokeh
     p.ygrid.grid_line_color = None
 
     quad = p.quad(top="top", bottom="bottom", left="left", right="right", source=blockSource,           # create quad when mouse hover
-        fill_color="grey", hover_fill_color="hover_fill_color",
-        fill_alpha=0.05, hover_alpha=0.3,
-        line_color=None, hover_line_color="white")
+        hover_fill_color="red", line_dash="dotted",
+        fill_alpha=0, hover_alpha=0.3, line_color='black', hover_line_color="white",
+        line_alpha=0.4, nonselection_fill_alpha=0, nonselection_line_alpha=0.4,
+        nonselection_line_color='black')
+    p.quad(top="top", bottom="bottom", right="right", left="left", source=tranSource,
+           fill_alpha=0, line_alpha=0, nonselection_fill_alpha=0, nonselection_line_alpha=0)
     p.multi_line(xs="xs", ys="ys", source=source, color="colors",                            # plot exons
                 line_width="height", line_alpha='line_alpha')
-    p.multi_line(xs="xs", ys="ys", source=blockSource, color="black",                       # plot boundaries
-                line_width=2, line_alpha=0.4, line_dash="dotted")
     p.inverted_triangle(x="x", y="y", color="color", source=codonSource, size='size', alpha=0.5)
     p.add_tools(HoverTool(tooltips=[("chromosome", "@chromosome"),("exon", "@exon"),        # make mouse hover work
                 ("start", "@start"), ("end", "@end")], renderers=[quad]))
@@ -344,7 +376,6 @@ def plotStartStop (tranList, blocks):
 def findCodon (posit, blocks):
     '''Add a codon mark to the plot.'''
     for blk in blocks:
-
         if blk.start <= posit and blk.end >= posit or \
                 blk.start >= posit and blk.end <= posit:      # check in both strand directions
             xPos = blk.boundary - abs(blk.end-posit)
@@ -380,11 +411,11 @@ class getParams(object):
         self.clusterDict = clusterDict
 
 # create all kinds of widgets
+# gencode.vM9.annotation.gtf
 GTF = TextInput(title="Enter the name of annotation file", value="gencode.vM9.annotation.gtf")
 Format = TextInput(title="Enter the format of annotation file, standard is gtf", value="standard")
 Matches = TextInput(title="Enter the name of pickle files from MatchAnnot,e.g. of multiple files: a.pickle,b.pickle", value="matches.pickle")
 Gene = TextInput(title="Select gene to visualize")
-Alpha = Slider(title="Alpha value of exons", value=1.0, start=0, end=1.0, step=0.1)
 Full = Slider(title="Full support threshold", value=0, start=0, end=30, step=1.0)
 Partial = Slider(title="Partial support threshold", value=0, start=0, end=50, step=1.0)
 Group = CheckboxGroup(labels=["Group by file", "Group by similarity"], active=[1])
@@ -398,21 +429,23 @@ matchList = Matches.value.strip().split(',')
 opt = getParams(GTF.value.strip(), matchList, None, forMat=Format.value.strip())
 
 blockDict = dict(top=[], bottom=[], left=[], right=[], exon=[],
-                start=[], end=[], chromosome=[], xs=[], ys=[],
-                hover_fill_color=[], boundary=[])
-sourceDict = dict(name=[], xs=[], ys=[], colors=[], line_alpha=[], width=[], height=[],
+                start=[], end=[], chromosome=[], xs=[], ys=[], boundary=[])
+tranDict = dict(top=[], bottom=[], left=[], right=[])
+sourceDict = dict(exon=[], name=[], xs=[], ys=[], colors=[], line_alpha=[], width=[], height=[],
                     tran=[], full=[], partial=[], annot=[], QScore=[], start=[], end=[],
                     fileColor=[])
 geneDict = dict(Gene=[], Isoforms=[])
 codonDict = dict(x=[], y=[], color=[], size=[])
 
 blockSource = ColumnDataSource(data=blockDict)
+allBlockSource = ColumnDataSource(data=blockDict)
+tranSource = ColumnDataSource(data=tranDict)
 source = ColumnDataSource(data=sourceDict)
 geneSource = ColumnDataSource(data=geneDict)
 codonSource = ColumnDataSource(data=codonDict)
 # the console box
 Console = PreText(text='Console:\nStart visualize by entering \nannotations, pickle file and gene.\nPress Enter to submit.\n',
-                    width=250, height=100)
+                    width=250, height=70)
 # the visualization plot
 p = createPlot()
 
@@ -448,16 +481,16 @@ paramTable = DataTable(source=paramSource, columns=paramColumns, width=1200, hei
 Gene.on_change('value', updateGene)
 Full.on_change('value', updateFP)
 Partial.on_change('value', updateFP)
-Alpha.on_change('value', updateFP)
 Cluster.on_change('value', updateGroup)
 Group.on_change('active', updateGroup)
 Save.on_change('value', saveFasta)
 Height.on_change('value', updateHeightWidth)
 Width.on_change('value', updateHeightWidth)
+tranSource.on_change('selected', selection)
 
 # the position of plot and widgets
 files = [GTF, Format, Matches]
-controls = [Console, Gene, Height, Width, Alpha, Full, Partial, Group, Cluster, Save]
+controls = [Console, Gene, Height, Width, Full, Partial, Group, Cluster, Save]
 main = VBoxForm(p, HBox(*files, width=1100), paramTable)
 inputs = HBox(VBoxForm(*controls), width=250)
 curdoc().add_root(HBox(inputs, main, geneCountTable, width=1800))
