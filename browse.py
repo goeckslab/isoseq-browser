@@ -158,12 +158,6 @@ def updateGene(attrname, old, new):                     # update visualization i
     else:
         Console.text = 'Console:\nSuccess!'
 
-# update plot if full and partial support threshold changes
-def updateFP(attrname, old, new):
-    sourceDict = source.data
-    sourceDict['line_alpha'] = [greaterFP(pos) for pos in range(len(sourceDict['annot']))]
-    source.data = sourceDict
-
 # update the number of groups
 def updateGroup(attrname, old, new):
     sourceDict = source.data
@@ -265,8 +259,6 @@ def getBoundaryData(blocks, chromosome):
             blockDict[columns[counter]].append(values[counter])
             counter += 1
     right = blockDict['right']
-    # # blockDict['left'] = left[:-1]
-    # # blockDict['right'] = left[1:]
     blockDict['ys'] = [(0, length+1) for x in range(numberOfBlocks+1)]
 
     tranDict['top'] = [x+1.5 for x in range(length)]
@@ -275,29 +267,18 @@ def getBoundaryData(blocks, chromosome):
     tranDict['right'] = [max(right) for x in range(length)]
     return blockDict, tranDict
 
-# find out which isoform is below full/partial threshold, which isoform is not
-def greaterFP(pos):
-    sourceDict = source.data
-    annot = sourceDict['annot']
-    if annot[pos] is False:
-        if sourceDict['full'][pos] < Full.value or sourceDict['partial'][pos] < Partial.value:
-            return 0                 # change alpha values of those below alpha threshold
-        else:
-            return 1
-    else:
-        return 1
-
-def selection(attr, old, new):
+def selectTran(attr, old, new):
     if tranSource.selected['1d']['indices'] == []:
         sourceDict = source.data
-        sourceDict['line_alpha'] = [1 for y in sourceDict['ys']]
+        sourceDict['line_alpha'] = [getAlpha(None, x) for x in zip(sourceDict['annot'],
+                                    sourceDict['full'], sourceDict['partial'])]
         source.data = sourceDict
         blockSource.data = allBlockSource.data
     else:
         index = tranSource.selected['1d']['indices'][0]
         sourceDict = source.data
-        alpha = [selectTran(index, y) for y in sourceDict['ys']]
-        sourceDict['line_alpha'] = alpha
+        sourceDict['line_alpha'] = [getAlpha(index, x) for x in zip(sourceDict['ys'],
+                                    sourceDict['annot'], sourceDict['full'], sourceDict['partial'])]
         source.data = sourceDict
         blockDict = blockSource.data
         blocks = list()
@@ -316,11 +297,29 @@ def selection(attr, old, new):
         bd, tr = getBoundaryData(blocks, chromosome)
         blockSource.data = bd
 
-def selectTran(index, y):
-    if index+1 == y[0]:
-        return 1
+def getAlpha(index, x):
+    if index is None:
+        if x[0] is False:
+            if x[1] < Full.value or x[2] < Partial.value:
+                return 0
+            else:
+                return 1
+        else:
+            return 1
     else:
-        return 0.2
+        if x[1] is False:
+            if x[2] < Full.value or x[3] < Partial.value:
+                return 0
+            else:
+                if index+1 == x[0][0]:
+                    return 1
+                else:
+                    return 0.2
+        else:
+                if index+1 == x[0][0]:
+                    return 1
+                else:
+                    return 0.2
 
 # save the transcripts to .fasta file, the function is copied from MatchAnnot
 def saveFasta(attrname, old, new):
@@ -479,14 +478,14 @@ paramTable = DataTable(source=paramSource, columns=paramColumns, width=1200, hei
 
 # make changes to the plot when widgets are updated
 Gene.on_change('value', updateGene)
-Full.on_change('value', updateFP)
-Partial.on_change('value', updateFP)
+Full.on_change('value', selectTran)
+Partial.on_change('value', selectTran)
 Cluster.on_change('value', updateGroup)
 Group.on_change('active', updateGroup)
 Save.on_change('value', saveFasta)
 Height.on_change('value', updateHeightWidth)
 Width.on_change('value', updateHeightWidth)
-tranSource.on_change('selected', selection)
+tranSource.on_change('selected', selectTran)
 
 # the position of plot and widgets
 files = [GTF, Format, Matches]
