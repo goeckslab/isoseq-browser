@@ -1,6 +1,6 @@
 # Isoseq-browser
 
-![alt text](images/BRCA1.png)
+![alt text](BRCA1.png)
 
 Isoseq-browser is a interactive visualization tool for RNA isoforms. It is build on [bokeh](https://github.com/bokeh/bokeh) visualization library of Python. Isoseq-browser is designed for Pacific Bioscience [Isoseq](http://www.pacb.com/blog/intro-to-iso-seq-method-full-leng/). Isoseq-browser is build on [MatchAnnot](https://github.com/TomSkelly/MatchAnnot), which is match isoforms to annotation genome.
 
