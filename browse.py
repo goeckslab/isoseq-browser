@@ -1,3 +1,5 @@
+import argparse
+
 import getGene
 from bokeh.plotting import Figure
 from bokeh.models import ColumnDataSource, HoverTool, HBox, VBoxForm
@@ -420,13 +422,24 @@ class getParams(object):
         self.annotations = annotations              # hold annotation dictionary in RAM
         self.clusterDict = clusterDict              # hold isoforms information in RAM
 
+#
+# Read command line arguments and use to set widget defaults.
+#
+parser = argparse.ArgumentParser(description='Visual analytics for PacBio data.')
+parser.add_argument('--input', dest='input_file', help='Input file (pickle)')
+parser.add_argument('--anno', dest='anno_file', help='Annotation file (gtf)')
+args, unknown = parser.parse_known_args()
+input_file = args.input_file or "matches.pickle"
+anno_file = args.anno_file or "gencode.vM9.annotation.gtf"
 
-# create all kinds of widgets
+#
+# Create all widgets.
+#
 GTF = TextInput(title="Enter the name of annotation file",
-                value="gencode.vM9.annotation.gtf")
+                value=anno_file)
 Format = TextInput(title="Enter the format of annotation file, standard is gtf",
                    value="standard")
-Matches = TextInput(title="Enter the name of pickle files from MatchAnnot,e.g. of multiple files: a.pickle,b.pickle", value="matches.pickle")
+Matches = TextInput(title="Enter the name of pickle files from MatchAnnot,e.g. of multiple files: a.pickle,b.pickle", value=input_file)
 Gene = TextInput(title="Select gene to visualize")
 Full = Slider(title="Full support threshold",
               value=0, start=0, end=30, step=1.0)
