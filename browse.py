@@ -2,7 +2,8 @@ import argparse
 
 import getGene
 from bokeh.plotting import Figure
-from bokeh.models import ColumnDataSource, HoverTool, HBox, VBoxForm
+from bokeh.models import ColumnDataSource, HoverTool
+from bokeh.layouts import row, column, widgetbox, layout
 from bokeh.io import curdoc
 from bokeh.models.widgets import Slider, TextInput, PreText, DataTable, TableColumn, CheckboxGroup
 from collections import Counter
@@ -354,8 +355,8 @@ def saveFasta(attrname, old, new):
 # create the visualization plot
 def createPlot():
     TOOLS = "pan, wheel_zoom, save, reset, tap"
-    p = Figure(plot_height=300, plot_width=Width.value, title="", y_range=[],
-               title_text_font_size=TITLE_FONT_SIZE, webgl=True, tools=TOOLS)
+    p = Figure(plot_height=300, plot_width=Width.value, title="", y_range=[], webgl=True, tools=TOOLS)
+    p.title.text_font_size = TITLE_FONT_SIZE
     p.xgrid.grid_line_color = None               # get rid of the grid in bokeh
     p.ygrid.grid_line_color = None
     # the block of exons, there's mouse hover effect on that
@@ -524,6 +525,6 @@ tranSource.on_change('selected', selectTran)
 # the position of plot and widgets on UI
 files = [GTF, Format, Matches]
 controls = [Console, Gene, Height, Width, Full, Partial, Group, Cluster, Save]
-main = VBoxForm(p, HBox(*files, width=1100), paramTable)
-inputs = HBox(VBoxForm(*controls), width=250)
-curdoc().add_root(HBox(inputs, main, geneCountTable, width=1800))
+main = column(p, row(*files, width=1100), paramTable)
+inputs = row( widgetbox(*controls), width=250)
+curdoc().add_root( row(inputs, main, geneCountTable, width=1800) )
