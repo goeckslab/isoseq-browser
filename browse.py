@@ -2,17 +2,19 @@ import argparse
 
 import getGene
 from bokeh.plotting import Figure
+# from bokeh.models import ColumnDataSource, HoverTool, HBox, VBoxForm
 from bokeh.models import ColumnDataSource, HoverTool
-from bokeh.layouts import row, column, widgetbox, layout
+from bokeh.layouts import row, column, widgetbox
+from bokeh.palettes import brewer
 from bokeh.io import curdoc
 from bokeh.models.widgets import Slider, TextInput, PreText, DataTable, TableColumn, CheckboxGroup
 from collections import Counter
 
 TITLE_FONT_SIZE = "25pt"
 # color of transcripts: [reference isoorm, group1, group2...]
-COLORS = ['#22313F', '#52B3D9', '#BE90D4', '#446CB3', '#86E2D5', '#F5D76E',
-          '#F1A9A0', '#663399', '#87D37C', '#26C281', '#96281B', '#4ECDC4',
-          '#F4B350', '#6C7A89', '#C5EFF7', '#EF4836']
+COLORS = brewer["Spectral"][11]
+COLORS = COLORS + brewer["PuBuGn"][4]
+COLORS.insert(0, '#22313F')
 
 
 # the sort-of main function of this app, it read the annotation and pickle file
@@ -21,7 +23,7 @@ def updateGene(attrname, old, new):
     opt.gene = Gene.value.strip()                  # get the gene name from UI, pass to a global variable opt
     matchList = Matches.value.strip().split(',')   # get the list of pickle files from UI
     opt.matches = matchList
-    p.title = "Transcript of %s" % Gene.value.strip()    # update the title of plot
+    p.title.text = "Transcript of %s" % Gene.value.strip()    # update the title of plot
     # Reset the plot to blank when initial updating genes
     blockSource.data = dict(top=[], bottom=[], left=[], right=[], exon=[],
                             start=[], end=[], chromosome=[], xs=[], ys=[],
@@ -29,9 +31,9 @@ def updateGene(attrname, old, new):
     allBlockSource.data = dict(top=[], bottom=[], left=[], right=[], exon=[],
                                start=[], end=[], chromosome=[], xs=[], ys=[],
                                boundary=[])
-    source.data = dict(top=[], bottom=[], left=[], right=[], exon=[],
-                       start=[], end=[], chromosome=[], xs=[], ys=[],
-                       boundary=[])
+    source.data = dict(xs=[], ys=[], color=[], line_alpha=[], height=[],
+                       tran=[], full=[], partial=[], annot=[], start=[],
+                       end=[], fileColor=[])
     codonSource.data = dict(x=[], y=[], color=[])
 
     # load the matched isoforms from pickle file
@@ -102,6 +104,7 @@ def updateGene(attrname, old, new):
     Console.text = 'Console:\nCreating plot...'
 
     p.plot_height = Height.value * 2 * (tranNum + 4)       # set the height of plot according to the length of transcripts
+    # p.height = Height.value * 2 * (tranNum + 4)
     p.y_range.factors = tranNames[::-1]             # set the y axis tick to the transcripts names
 
     Console.text = 'Console:\nGrouping...'
@@ -114,7 +117,6 @@ def updateGene(attrname, old, new):
     codonDict = plotStartStop(tranList, blocks)         # get the location of start, stop codons
     codonSource.data = codonDict
     source.data = sourceDict
-
     # update the data used for plotting boundaries and hover block
     blockDict, tranDict = getBoundaryData(blocks, chromosome)              # get the data of each block that can be directly used to plot
     blockSource.data = blockDict
@@ -132,7 +134,7 @@ def updateGene(attrname, old, new):
 def updateGroup(attrname, old, new):
     sourceDict = source.data
     if 0 in Group.active:                 # if it is told to group by files
-        sourceDict['colors'] = sourceDict['fileColor']
+        sourceDict['color'] = sourceDict['fileColor']
     else:
         if 1 in Group.active:            # if it is told to group by clustering
             colors = list()
@@ -144,20 +146,20 @@ def updateGroup(attrname, old, new):
                     colors.append(COLORS[0])
                 else:
                     colors.append(COLORS[1])
-        sourceDict['colors'] = colors
+        sourceDict['color'] = colors
     source.data = sourceDict
 
 
 # update the width, height of the plot
 def updateHeightWidth(attrname, old, new):
-    p.plot_height = Height.value * 2 * (tranNum + 4)        # update the height of plot according to the height of transcript in UI
-    p.plot_width = Width.value                # update plot width according to width
     sourceDict = source.data
     sourceDict['height'] = [Height.value for x in range(len(sourceDict['xs']))]
     source.data = sourceDict
     codonDict = codonSource.data
     codonDict['size'] = [Height.value * 1.2 for x in range(len(codonDict['x']))]    # adjust the codon size accordingly
     codonSource.data = codonDict
+    p.plot_height = Height.value * 2 * (tranNum + 4)        # update the height of plot according to the height of transcript in UI
+    p.plot_width = Width.value                # update plot width according to width
 
 
 # show/hide transcripts according to UI selection, implemented by changing the alpha values
@@ -238,10 +240,10 @@ def selectGene(opt, isAnnot, isMatch):
 
 # get the data for plotting exons (start, end position for example)
 def getExonData(exonList, colorDF):
-    sourceDict = dict(xs=[], ys=[], colors=[], line_alpha=[], width=[],
-                      height=[], tran=[], full=[], partial=[], annot=[],
-                      QScore=[], start=[], end=[], fileColor=[])
-    columns = ['xs', 'ys', 'colors', 'QScore', 'start', 'end', 'tran', 'full',
+    sourceDict = dict(xs=[], ys=[], color=[], line_alpha=[], height=[],
+                      tran=[], full=[], partial=[], annot=[], start=[],
+                      end=[], fileColor=[])
+    columns = ['xs', 'ys', 'color', 'start', 'end', 'tran', 'full',
                'partial', 'annot', 'fileColor']
     for myExon in exonList:
         exonSize = myExon.end - myExon.start + 1
@@ -259,7 +261,7 @@ def getExonData(exonList, colorDF):
                     color = COLORS[1]
         xs = (adjStart, adjStart + exonSize)
         ys = (tranNum - (myExon.tran.tranIx), tranNum - (myExon.tran.tranIx))
-        values = [xs, ys, color, myExon.QScore, myExon.start, myExon.end,
+        values = [xs, ys, color, myExon.start, myExon.end,
                   myExon.tran.name, myExon.tran.full, myExon.tran.partial,
                   myExon.tran.annot, COLORS[myExon.tran.source[0]]]
 
@@ -274,14 +276,15 @@ def getExonData(exonList, colorDF):
 # get the color for matched isoforms
 def getColorFromDF(exonName, colorDF):
     if exonName not in list(colorDF.name):
-        color = '#22313F'
+        color = COLORS[0]
     else:
         row = colorDF.loc[colorDF['name'] == exonName]    # find out which transcript it is, and what group it belongs
-        colorName = 'color%s' % str(Cluster.value)          # how many groups are there
+        groupName = 'group%s' % str(Cluster.value)          # how many groups are there
         try:
-            color = row[colorName]
+            group = row[groupName].values[0]
+            color = COLORS[group + 1]
         except (ValueError, KeyError):          # if the input groups are more than total number of transcripts
-            color = row['color1']
+            color = COLORS[0]
     return color
 
 
@@ -355,7 +358,10 @@ def saveFasta(attrname, old, new):
 # create the visualization plot
 def createPlot():
     TOOLS = "pan, wheel_zoom, save, reset, tap"
-    p = Figure(plot_height=300, plot_width=Width.value, title="", y_range=[], webgl=True, tools=TOOLS)
+    p = Figure(title="", y_range=[], webgl=True,
+               tools=TOOLS, toolbar_location="above")
+    p.plot_height = 300
+    p.plot_width = Width.value
     p.title.text_font_size = TITLE_FONT_SIZE
     p.xgrid.grid_line_color = None               # get rid of the grid in bokeh
     p.ygrid.grid_line_color = None
@@ -372,8 +378,8 @@ def createPlot():
            source=tranSource, fill_alpha=0, line_alpha=0,
            nonselection_fill_alpha=0, nonselection_line_alpha=0)
     # what exons really is
-    p.multi_line(xs="xs", ys="ys", source=source, color="colors",
-                 line_width="height", line_alpha='line_alpha')
+    p.multi_line(xs="xs", ys="ys", line_width="height", color="color",
+                 line_alpha="line_alpha", source=source)
     # the start/stop codon
     p.inverted_triangle(x="x", y="y", color="color", source=codonSource,
                         size='size', alpha=0.5)
@@ -435,7 +441,6 @@ anno_file = args.anno_file or "gencode.vM9.annotation.gtf"
 
 #
 # Create all widgets.
-#
 GTF = TextInput(title="Enter the name of annotation file",
                 value=anno_file)
 Format = TextInput(title="Enter the format of annotation file, standard is gtf",
@@ -462,8 +467,8 @@ opt = getParams(None, [], None, forMat=None)    # a object that contains all the
 blockDict = dict(top=[], bottom=[], left=[], right=[], exon=[],
                  start=[], end=[], chromosome=[], xs=[], ys=[], boundary=[])
 tranDict = dict(top=[], bottom=[], left=[], right=[])
-sourceDict = dict(xs=[], ys=[], colors=[], line_alpha=[], width=[], height=[],
-                  tran=[], full=[], partial=[], annot=[], QScore=[], start=[],
+sourceDict = dict(xs=[], ys=[], color=[], line_alpha=[], height=[],
+                  tran=[], full=[], partial=[], annot=[], start=[],
                   end=[], fileColor=[])
 geneDict = dict(Gene=[], Isoforms=[])
 codonDict = dict(x=[], y=[], color=[], size=[])
@@ -495,7 +500,7 @@ codonSource = ColumnDataSource(data=codonDict)
 # a description of all the parameters
 paramSource = ColumnDataSource(data=paramDict)
 # the console box
-Console = PreText(text='Console:\nStart visualize by entering \nannotations, pickle file and gene.\nPress Enter to submit.\n',
+Console = PreText(text='Console:\nStart visualize by entering \nannotations, pickle file and\n gene. Press Enter to submit.\n',
                   width=250, height=70)
 # the visualization plot
 p = createPlot()
@@ -509,7 +514,7 @@ geneCountTable = DataTable(source=geneSource, columns=geneColumns,
 paramColumns = [TableColumn(field="Parameter", title="Parameter"),
                 TableColumn(field="Description", title="Description")]
 paramTable = DataTable(source=paramSource, columns=paramColumns,
-                       width=1200, height=700)
+                       width=1100, height=700)
 
 # make changes to the plot when widgets are updated
 Gene.on_change('value', updateGene)
@@ -525,6 +530,7 @@ tranSource.on_change('selected', selectTran)
 # the position of plot and widgets on UI
 files = [GTF, Format, Matches]
 controls = [Console, Gene, Height, Width, Full, Partial, Group, Cluster, Save]
-main = column(p, row(*files, width=1100), paramTable)
-inputs = row( widgetbox(*controls), width=250)
-curdoc().add_root( row(inputs, main, geneCountTable, width=1800) )
+main = column(p, row(*files), paramTable)
+inputs = row(widgetbox(*controls))
+curdoc().add_root(row(inputs, main, geneCountTable))
+curdoc().title = "Isoseq-browser"

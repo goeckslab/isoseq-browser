@@ -3,15 +3,14 @@ import re
 import string
 from tt_log import logger
 import Annotations as anno
+from bokeh.palettes import brewer
 import Best as best
 import Cluster as cl
 import pandas as pd
 from sklearn.cluster import KMeans
 
 # color of isoforms
-COLORS = ['#52B3D9', '#BE90D4', '#446CB3', '#86E2D5', '#F5D76E',
-          '#F1A9A0', '#663399', '#87D37C', '#26C281', '#96281B',
-          '#4ECDC4', '#F4B350', '#6C7A89', '#C5EFF7', '#EF4836']
+COLORS = brewer["Spectral"][11]
 
 MIN_REGION_SIZE = 50
 FASTA_WRAP = 60                 # bases per fasta line
@@ -462,9 +461,7 @@ def groupTran(tranList, exonList, cluster_num):
         group = KMeans(n_clusters=i + 1).fit_predict(distanceTable)
         global groupName
         groupName = 'group%s' % str(i + 1)
-        colorName = 'color%s' % str(i + 1)
         colorDF[groupName] = group
-        colorDF[colorName] = colorDF.apply(assignColor, axis=1)
     return colorDF
 
 
@@ -488,13 +485,6 @@ def toBoolean(row):
     for exon in exons:
         booleanTran[exon[0]:exon[1] + 1] = [True for x in range(exon[1] + 1 - exon[0])]
     return booleanTran
-
-
-def assignColor(row):
-    for x in range(15):
-        if row[groupName] == x:
-            return COLORS[x]
-            break
 
 
 def calcDis(df, i, j):
