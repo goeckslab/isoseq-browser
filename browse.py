@@ -159,7 +159,7 @@ def updateHeightWidth(attrname, old, new):
     codonDict['size'] = [Height.value * 1.2 for x in range(len(codonDict['x']))]    # adjust the codon size accordingly
     codonSource.data = codonDict
     p.plot_height = Height.value * 2 * (tranNum + 4)        # update the height of plot according to the height of transcript in UI
-    p.plot_width = Width.value                # update plot width according to width
+    p.width = Width.value                # update plot width according to width
 
 
 # show/hide transcripts according to UI selection, implemented by changing the alpha values
@@ -472,18 +472,6 @@ sourceDict = dict(xs=[], ys=[], color=[], line_alpha=[], height=[],
                   end=[], fileColor=[])
 geneDict = dict(Gene=[], Isoforms=[])
 codonDict = dict(x=[], y=[], color=[], size=[])
-paramDict = dict(Parameter=['annotation', 'format', 'matches', 'gene', 'full', 'alpha',
-                            'partial', 'group', '# of groups', 'fasta'],
-                 Description=['annotations file, in format specified by --format, Reload page to update',
-                              'format of annotation file: standard, alt, pickle (default=standard: gtf)',
-                              'pickle file from matchAnnot.py, if there are multiple files, seperate them with comma no space, Reload page to update',
-                              'gene to plot (required)',
-                              'add alpha channel to transcripts without low full/partial support, change full/partial to update',
-                              'full support threshold, work together with alpha',
-                              'partial support threshold, work together with alpha',
-                              'group the trascript on similarity',
-                              'assign transcripts into how many groups',
-                              'out put the .fasta files to a folder, enter the folder name'],)
 
 # update the ColumnDataSource = instant update plot
 # selected exon boundaies
@@ -497,24 +485,18 @@ source = ColumnDataSource(data=sourceDict)
 # table of genes and # of clusters
 geneSource = ColumnDataSource(data=geneDict)
 codonSource = ColumnDataSource(data=codonDict)
-# a description of all the parameters
-paramSource = ColumnDataSource(data=paramDict)
 # the console box
-Console = PreText(text='Console:\nStart visualize by entering \nannotations, pickle file and\n gene. Press Enter to submit.\n',
-                  width=250, height=70)
+Console = PreText(text='Console:\nStart visualize by entering \nannotations, pickle file and\n gene. Press Enter to submit.\n', height=70)
 # the visualization plot
 p = createPlot()
 
 # a table of with all the genes in the match files, and how many isoforms in each gene
 geneColumns = [TableColumn(field="Gene", title="Gene"),
                TableColumn(field="Isoforms", title="Isoforms")]
-geneCountTable = DataTable(source=geneSource, columns=geneColumns,
-                           width=200, height=1200)
+geneCountTable = DataTable(source=geneSource, columns=geneColumns)
 
 paramColumns = [TableColumn(field="Parameter", title="Parameter"),
                 TableColumn(field="Description", title="Description")]
-paramTable = DataTable(source=paramSource, columns=paramColumns,
-                       width=1100, height=700)
 
 # make changes to the plot when widgets are updated
 Gene.on_change('value', updateGene)
@@ -527,10 +509,9 @@ Height.on_change('value', updateHeightWidth)
 Width.on_change('value', updateHeightWidth)
 tranSource.on_change('selected', selectTran)
 
-# the position of plot and widgets on UI
-files = [GTF, Format, Matches]
-controls = [Console, Gene, Height, Width, Full, Partial, Group, Cluster, Save]
-main = column(p, row(*files), paramTable)
+# Layout interface.
+controls = [Console, GTF, Format, Matches, Gene, Height, Width, Full, Partial, Group, Cluster, Save]
+main = column(p, geneCountTable)
 inputs = row(widgetbox(*controls))
-curdoc().add_root(row(inputs, main, geneCountTable))
+curdoc().add_root(row(inputs, main))
 curdoc().title = "Isoseq-browser"
