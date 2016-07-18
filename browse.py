@@ -23,7 +23,7 @@ def updateGene(attrname, old, new):
     opt.gene = Gene.value.strip()                  # get the gene name from UI, pass to a global variable opt
     matchList = Matches.value.strip().split(',')   # get the list of pickle files from UI
     opt.matches = matchList
-    p.title.text = "Transcript of %s" % Gene.value.strip()    # update the title of plot
+    p.title.text = "%s transcripts" % Gene.value.strip()    # update the title of plot
     # Reset the plot to blank when initial updating genes
     blockSource.data = dict(top=[], bottom=[], left=[], right=[], exon=[],
                             start=[], end=[], chromosome=[], xs=[], ys=[],
@@ -103,7 +103,7 @@ def updateGene(attrname, old, new):
     tranNum = len(tranNames)                             # how many transcripts are there
     Console.text = 'Console:\nCreating plot...'
 
-    p.plot_height = Height.value * 2 * (tranNum + 4)       # set the height of plot according to the length of transcripts
+    p.height = Height.value * 2 * (tranNum + 4)       # set the height of plot according to the length of transcripts
     # p.height = Height.value * 2 * (tranNum + 4)
     p.y_range.factors = tranNames[::-1]             # set the y axis tick to the transcripts names
 
@@ -158,7 +158,7 @@ def updateHeightWidth(attrname, old, new):
     codonDict = codonSource.data
     codonDict['size'] = [Height.value * 1.2 for x in range(len(codonDict['x']))]    # adjust the codon size accordingly
     codonSource.data = codonDict
-    p.plot_height = Height.value * 2 * (tranNum + 4)        # update the height of plot according to the height of transcript in UI
+    p.height = Height.value * 2 * (tranNum + 4)        # update the height of plot according to the height of transcript in UI
     p.width = Width.value                # update plot width according to width
 
 
@@ -359,9 +359,8 @@ def saveFasta(attrname, old, new):
 def createPlot():
     TOOLS = "pan, wheel_zoom, save, reset, tap"
     p = Figure(title="", y_range=[], webgl=True,
-               tools=TOOLS, toolbar_location="above")
-    p.plot_height = 300
-    p.plot_width = Width.value
+               tools=TOOLS, toolbar_location="above",
+               plot_height=300, plot_width=Width.value)
     p.title.text_font_size = TITLE_FONT_SIZE
     p.xgrid.grid_line_color = None               # get rid of the grid in bokeh
     p.ygrid.grid_line_color = None
@@ -492,8 +491,8 @@ p = createPlot()
 
 # a table of with all the genes in the match files, and how many isoforms in each gene
 geneColumns = [TableColumn(field="Gene", title="Gene"),
-               TableColumn(field="Isoforms", title="Isoforms")]
-geneCountTable = DataTable(source=geneSource, columns=geneColumns)
+               TableColumn(field="Isoforms", title="Transcripts")]
+geneCountTable = DataTable(source=geneSource, columns=geneColumns, row_headers=False)
 
 paramColumns = [TableColumn(field="Parameter", title="Parameter"),
                 TableColumn(field="Description", title="Description")]
