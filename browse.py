@@ -2,12 +2,12 @@ import argparse
 
 import getGene
 from bokeh.plotting import Figure
-# from bokeh.models import ColumnDataSource, HoverTool, HBox, VBoxForm
+import pandas as pd
 from bokeh.models import ColumnDataSource, HoverTool
 from bokeh.layouts import row, column, widgetbox
 from bokeh.palettes import brewer
 from bokeh.io import curdoc
-from bokeh.models.widgets import Slider, TextInput, PreText, DataTable, TableColumn, CheckboxGroup
+from bokeh.models.widgets import Slider, TextInput, PreText, DataTable, TableColumn, CheckboxGroup, Button, RadioButtonGroup
 from collections import Counter
 
 TITLE_FONT_SIZE = "25pt"
@@ -19,11 +19,7 @@ COLORS.insert(0, '#22313F')
 
 # the sort-of main function of this app, it read the annotation and pickle file
 # then create a plot when genes are updated.
-def updateGene(attrname, old, new):
-    opt.gene = Gene.value.strip()                  # get the gene name from UI, pass to a global variable opt
-    matchList = Matches.value.strip().split(',')   # get the list of pickle files from UI
-    opt.matches = matchList
-    p.title.text = "%s transcripts" % Gene.value.strip()    # update the title of plot
+def updateGene():
     # Reset the plot to blank when initial updating genes
     blockSource.data = dict(top=[], bottom=[], left=[], right=[], exon=[],
                             start=[], end=[], chromosome=[], xs=[], ys=[],
@@ -34,7 +30,15 @@ def updateGene(attrname, old, new):
     source.data = dict(xs=[], ys=[], color=[], line_alpha=[], height=[],
                        tran=[], full=[], partial=[], annot=[], start=[],
                        end=[], fileColor=[])
-    codonSource.data = dict(x=[], y=[], color=[])
+    codonSource.data = dict(x=[], y=[], color=[], size=[])
+    seq = geneSource.selected['1d']['indices']
+    if seq != []:
+        opt.gene = geneSource.data['Gene'][seq[0]]
+    else:
+        opt.gene = Gene.value.strip()                  # get the gene name from UI, pass to a global variable opt
+    matchList = Matches.value.strip().split(',')       # get the list of pickle files from UI
+    opt.matches = matchList
+    p.title.text = "%s transcripts" % opt.gene         # update the title of plot
 
     # load the matched isoforms from pickle file
     Console.text = 'Console:\nReading pickle file...'
@@ -103,8 +107,7 @@ def updateGene(attrname, old, new):
     tranNum = len(tranNames)                             # how many transcripts are there
     Console.text = 'Console:\nCreating plot...'
 
-    p.height = Height.value * 2 * (tranNum + 4)       # set the height of plot according to the length of transcripts
-    # p.height = Height.value * 2 * (tranNum + 4)
+    # p.height = Height.value * 2 * (tranNum + 4)       # set the height of plot according to the length of transcripts
     p.y_range.factors = tranNames[::-1]             # set the y axis tick to the transcripts names
 
     Console.text = 'Console:\nGrouping...'
@@ -158,8 +161,23 @@ def updateHeightWidth(attrname, old, new):
     codonDict = codonSource.data
     codonDict['size'] = [Height.value * 1.2 for x in range(len(codonDict['x']))]    # adjust the codon size accordingly
     codonSource.data = codonDict
-    p.height = Height.value * 2 * (tranNum + 4)        # update the height of plot according to the height of transcript in UI
-    p.width = Width.value                # update plot width according to width
+    # p.height = Height.value * 2 * (tranNum + 4)        # update the height of plot according to the height of transcript in UI
+    # p.width = Width.value                # update plot width according to width
+
+
+def updateGeneTable(attrname, old, new):
+    actived = radio_button_group.active
+    geneDict = geneSource.data
+    df = pd.DataFrame()
+    df['Gene'] = geneDict['Gene']
+    df['Transcripts'] = geneDict['Transcripts']
+    if actived == 0:
+        df = df.sort_values(by='Gene', ascending=True)
+    elif actived == 1:
+        df = df.sort_values(by='Transcripts', ascending=False)
+    geneDict['Gene'] = list(df['Gene'])
+    geneDict['Transcripts'] = list(df['Transcripts'])
+    geneSource.data = geneDict
 
 
 # show/hide transcripts according to UI selection, implemented by changing the alpha values
@@ -284,7 +302,7 @@ def getColorFromDF(exonName, colorDF):
             group = row[groupName].values[0]
             color = COLORS[group + 1]
         except (ValueError, KeyError):          # if the input groups are more than total number of transcripts
-            color = COLORS[0]
+            color = COLORS[1]
     return color
 
 
@@ -300,9 +318,14 @@ def getBoundaryData(blocks, chromosome):
     exonCounter = 1
     numberOfBlocks = len(blocks)
     for bound in blocks:      # infomation for the mouse hover effect on blocks
-        values = [bound.boundary, bound.boundary - bound.start + bound.end,
-                  bound.boundary, (bound.boundary, bound.boundary),
-                  bound.start, bound.end, exonCounter]
+        if strand == '+':
+            values = [bound.boundary, bound.boundary + bound.start - bound.end,
+                      bound.boundary, (bound.boundary, bound.boundary),
+                      bound.start, bound.end, exonCounter]
+        else:
+            values = [bound.boundary, bound.boundary - bound.start + bound.end,
+                      bound.boundary, (bound.boundary, bound.boundary),
+                      bound.start, bound.end, exonCounter]
         blockDict['top'] = [(tranNum + 1) for x in range(numberOfBlocks)]
         blockDict['bottom'] = [0 for x in range(numberOfBlocks)]
         blockDict['chromosome'] = [chromosome for x in range(numberOfBlocks)]
@@ -341,7 +364,11 @@ def howManyIsoforms(clusterDict, matchList):
             geneDict.setdefault(key, len(val))                          # how many isoforms for each gene
         geneDict = Counter(geneDict)
         allGenes = allGenes + geneDict                                  # combine every match files
-    geneSource.data = dict(Gene=allGenes.keys(), Isoforms=allGenes.values())
+    df = pd.DataFrame()
+    df['Gene'] = allGenes.keys()
+    df['Transcripts'] = allGenes.values()
+    df = df.sort_values(by='Transcripts', ascending=False)
+    geneSource.data = dict(Gene=list(df['Gene']), Transcripts=list(df['Transcripts']))
 
 
 # save the transcripts to .fasta file, the function is copied from MatchAnnot
@@ -360,7 +387,7 @@ def createPlot():
     TOOLS = "pan, wheel_zoom, save, reset, tap"
     p = Figure(title="", y_range=[], webgl=True,
                tools=TOOLS, toolbar_location="above",
-               plot_height=300, plot_width=Width.value)
+               plot_height=600, plot_width=Width.value)
     p.title.text_font_size = TITLE_FONT_SIZE
     p.xgrid.grid_line_color = None               # get rid of the grid in bokeh
     p.ygrid.grid_line_color = None
@@ -428,9 +455,7 @@ class getParams(object):
         self.annotations = annotations              # hold annotation dictionary in RAM
         self.clusterDict = clusterDict              # hold isoforms information in RAM
 
-#
 # Read command line arguments and use to set widget defaults.
-#
 parser = argparse.ArgumentParser(description='Visual analytics for PacBio data.')
 parser.add_argument('--input', dest='input_file', help='Input file (pickle)')
 parser.add_argument('--anno', dest='anno_file', help='Annotation file (gtf)')
@@ -438,7 +463,6 @@ args, unknown = parser.parse_known_args()
 input_file = args.input_file or "matches.pickle"
 anno_file = args.anno_file or "gencode.vM9.annotation.gtf"
 
-#
 # Create all widgets.
 GTF = TextInput(title="Enter the name of annotation file",
                 value=anno_file)
@@ -459,6 +483,8 @@ Height = Slider(title="The height of transcripts",
 Width = Slider(title="The width of plot",
                value=1200, start=400, end=1500, step=50)
 Save = TextInput(title="Enter the folder name to data in Fasta", value=None)
+button = Button(label='confirm', button_type="success")
+radio_button_group = RadioButtonGroup(labels=["Rank by Gene", "Rank by Transcripts"], active=1)
 
 opt = getParams(None, [], None, forMat=None)    # a object that contains all the inputs options for read data
 
@@ -469,7 +495,7 @@ tranDict = dict(top=[], bottom=[], left=[], right=[])
 sourceDict = dict(xs=[], ys=[], color=[], line_alpha=[], height=[],
                   tran=[], full=[], partial=[], annot=[], start=[],
                   end=[], fileColor=[])
-geneDict = dict(Gene=[], Isoforms=[])
+geneDict = dict(Gene=[], Transcripts=[])
 codonDict = dict(x=[], y=[], color=[], size=[])
 
 # update the ColumnDataSource = instant update plot
@@ -491,14 +517,16 @@ p = createPlot()
 
 # a table of with all the genes in the match files, and how many isoforms in each gene
 geneColumns = [TableColumn(field="Gene", title="Gene"),
-               TableColumn(field="Isoforms", title="Transcripts")]
-geneCountTable = DataTable(source=geneSource, columns=geneColumns, row_headers=False)
+               TableColumn(field="Transcripts", title="Transcripts")]
+geneCountTable = DataTable(source=geneSource, columns=geneColumns, sortable=False,
+                           row_headers=False)
 
 paramColumns = [TableColumn(field="Parameter", title="Parameter"),
                 TableColumn(field="Description", title="Description")]
 
 # make changes to the plot when widgets are updated
-Gene.on_change('value', updateGene)
+button.on_click(updateGene)
+Gene.on_change('value', lambda attr, old, new: updateGene())
 Full.on_change('value', selectTran)
 Partial.on_change('value', selectTran)
 Cluster.on_change('value', updateGroup)
@@ -507,10 +535,11 @@ Save.on_change('value', saveFasta)
 Height.on_change('value', updateHeightWidth)
 Width.on_change('value', updateHeightWidth)
 tranSource.on_change('selected', selectTran)
+radio_button_group.on_change('active', updateGeneTable)
 
 # Layout interface.
 controls = [Console, GTF, Format, Matches, Gene, Height, Width, Full, Partial, Group, Cluster, Save]
-main = column(p, geneCountTable)
+main = column(p, row(button, radio_button_group), geneCountTable)
 inputs = row(widgetbox(*controls))
 curdoc().add_root(row(inputs, main))
 curdoc().title = "Isoseq-browser"
