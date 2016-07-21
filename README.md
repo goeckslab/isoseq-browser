@@ -9,13 +9,13 @@ Isoseq-browser is a interactive visualization tool for RNA isoforms. It is build
 * Make environment:
 
 ```
-    make env Makefile
+    make env
 ```
 
 * Download the example data (optional):
 
 ```
-    make download Makefile
+    make download
 ```
 
 * Run Isoseq-browser:
