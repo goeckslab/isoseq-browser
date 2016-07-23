@@ -111,10 +111,23 @@ def updateGene():
                        end=[], fileColor=[])
     codonSource.data = dict(x=[], y=[], color=[], size=[])
     seq = geneSource.selected['1d']['indices']
-    if seq != []:
-        opt.gene = geneSource.data['Gene'][seq[0]]
+    if opt.gene is None:
+        opt.gene = Gene.value.strip()
+        geneUpdated = True
     else:
-        opt.gene = Gene.value.strip()                  # get the gene name from UI, pass to a global variable opt
+        if seq == [] or Sel.active == 0:
+            if opt.gene == Gene.value.strip():
+                geneUpdated = False
+            else:
+                opt.gene = Gene.value.strip()                  # get the gene name from UI, pass to a global variable opt
+                geneUpdated = True
+        else:
+            if opt.gene == geneSource.data['Gene'][seq[0]]:
+                geneUpdated = False
+            else:
+                opt.gene = geneSource.data['Gene'][seq[0]]
+                geneUpdated = True
+
     matchList = Matches.value.strip().split(',')       # get the list of pickle files from UI
     opt.matches = matchList
 
@@ -198,10 +211,10 @@ def updateGene():
 
     Console.text = 'Console:\nGrouping...'
     if 1 in Group.active and isMatch is True:
-        colorDF = getGene.groupTran(tranList, exonList, 15)          # group the transcripts by similarities
+        if geneUpdated:
+            colorDF = getGene.groupTran(tranList, exonList, 15)          # group the transcripts by similarities
     else:
         colorDF = None
-
     sourceDict = getExonData(exonList, colorDF)         # get the data of each isoform that can be directly used to plot
     codonDict = plotStartStop(tranList, blocks)         # get the location of start, stop codons
     codonSource.data = codonDict
@@ -242,7 +255,6 @@ def updateGroup(attrname, old, new):
 def updateHeightWidth(attrname, old, new):
     """
     Update plot height and width.
-
     NOTE: this method is not used right now because plot is created for each
     height/width change in updateGene(). When Bokeh bug is fixed, plot should
     be created once and updated using this function.
@@ -260,7 +272,7 @@ def updateHeightWidth(attrname, old, new):
 
 
 def updateGeneTable(attrname, old, new):
-    actived = radio_button_group.active
+    actived = Sort.active
     geneDict = geneSource.data
     df = pd.DataFrame()
     df['Gene'] = geneDict['Gene']
@@ -310,7 +322,7 @@ def selectTran(attr, old, new):
 
 
 # change the alpha of each exon value according UI: full/partial widgets, select transcripts
-# it's not very intuitive cause x is not consistant in each if/else statement
+# it's not very intuitive cause x is different in each if/else statement
 def getAlpha(index, x):
     if index is None:           # nothing is selected
         if x[0] is False:       # not an annotation exon
@@ -385,7 +397,7 @@ def getExonData(exonList, colorDF):
     return sourceDict
 
 
-# get the color for matched isoforms
+# get the color form grouped isoforms
 def getColorFromDF(exonName, colorDF):
     if exonName not in list(colorDF.name):
         color = COLORS[0]
@@ -507,6 +519,7 @@ def findCodon(posit, blocks):
 # Classes.
 #
 
+
 # a class containing all the input parameters
 class getParams(object):
     def __init__(self, gtf, matches, gene, forMat="standard", fasta=None,
@@ -546,11 +559,12 @@ Group = CheckboxGroup(labels=["Group by file", "Group by similarity"],
                       active=[1])
 Cluster = Slider(title="The number of groups",
                  value=3, start=1, end=15, step=1.0)
-Height = TextInput(title="Transcripts height", value="20")
-Width = TextInput(title="Plot width", value="1200")
-Save = TextInput(title="Enter the folder name to data in Fasta", value=None)
+Height = TextInput(title="Transcripts height", value="8")
+Width = TextInput(title="Plot width", value="1000")
+Save = TextInput(title="Enter the folder name to save data in Fasta", value=None)
 button = Button(label='confirm', button_type="success")
-radio_button_group = RadioButtonGroup(labels=["Rank by Gene", "Rank by Transcripts"], active=1)
+Sel = RadioButtonGroup(labels=["Enter from textbox", "Select from gene table"], active=0)
+Sort = RadioButtonGroup(labels=["Rank by Gene", "Rank by Transcripts"], active=1)
 
 opt = getParams(None, [], None, forMat=None)    # a object that contains all the inputs options for read data
 
@@ -561,14 +575,13 @@ Console = PreText(text='Console:\nStart visualize by entering \nannotations, pic
 geneColumns = [TableColumn(field="Gene", title="Gene"),
                TableColumn(field="Transcripts", title="Transcripts")]
 geneCountTable = DataTable(source=geneSource, columns=geneColumns, sortable=False,
-                           row_headers=False, width=300)
+                           row_headers=False, width=280)
 
 paramColumns = [TableColumn(field="Parameter", title="Parameter"),
                 TableColumn(field="Description", title="Description")]
 
 # make changes to the plot when widgets are updated
 button.on_click(updateGene)
-Gene.on_change('value', lambda attr, old, new: updateGene())
 Full.on_change('value', selectTran)
 Partial.on_change('value', selectTran)
 Cluster.on_change('value', updateGroup)
@@ -577,10 +590,10 @@ Save.on_change('value', saveFasta)
 Height.on_change('value', lambda attr, old, new: updateGene())
 Width.on_change('value', lambda attr, old, new: updateGene())
 tranSource.on_change('selected', selectTran)
-radio_button_group.on_change('active', updateGeneTable)
+Sort.on_change('active', updateGeneTable)
 
 # Layout interface.
-controls = [Console, GTF, Format, Matches, Gene, Height, Width, Full, Partial, Group, Cluster, Save]
-inputs = column(widgetbox(*controls), button, radio_button_group, geneCountTable)
-curdoc().add_root(row(inputs, plotColumn))
+controls = [Console, GTF, Format, Matches, Height, Width, Full, Partial, Group, Cluster, Save]
+geneSelect = [Gene, button, Sel, Sort, geneCountTable]
+curdoc().add_root(row(widgetbox(controls), widgetbox(geneSelect), plotColumn))
 curdoc().title = "Isoseq-browser"
