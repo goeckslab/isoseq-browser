@@ -1,5 +1,5 @@
 import argparse
-
+import json
 import getGene
 from bokeh.plotting import Figure
 import pandas as pd
@@ -33,6 +33,15 @@ sourceDict = dict(xs=[], ys=[], color=[], line_alpha=[], height=[],
                   end=[], fileColor=[])
 geneDict = dict(Gene=[], Transcripts=[])
 codonDict = dict(x=[], y=[], color=[], size=[])
+try:
+    with open('gene.json', 'r') as f:
+        markedDict = json.load(f)
+        f.close()
+except IOError:
+    markedDict = dict(marked_genes=[])
+    with open('gene.json', 'w') as f:
+        json.dump(markedDict, f)
+        f.close()
 
 # update the ColumnDataSource = instant update plot
 # selected exon boundaies
@@ -46,6 +55,7 @@ source = ColumnDataSource(data=sourceDict)
 # table of genes and # of clusters
 geneSource = ColumnDataSource(data=geneDict)
 codonSource = ColumnDataSource(data=codonDict)
+markedSource = ColumnDataSource(data=markedDict)
 
 # Column that holds plot.
 plotColumn = column()
@@ -96,6 +106,36 @@ def updateGene():
     When genes are changed, a new plot is created and drawn.
     """
 
+    seq1 = geneSource.selected['1d']['indices']
+    seq2 = markedSource.selected['1d']['indices']
+    if opt.gene is None:
+        opt.gene = Gene.value.strip()
+        geneUpdated = True
+    else:
+        if Sel.active == 0:
+            if opt.gene == Gene.value.strip():
+                geneUpdated = False
+            else:
+                opt.gene = Gene.value.strip()                  # get the gene name from UI, pass to a global variable opt
+                geneUpdated = True
+        elif Sel.active == 1:
+            if seq1 == []:
+                geneUpdated = False
+            else:
+                if opt.gene == geneSource.data['Gene'][seq1[0]]:
+                    geneUpdated = False
+                else:
+                    opt.gene = geneSource.data['Gene'][seq1[0]]
+                    geneUpdated = True
+        else:
+            if seq2 == []:
+                geneUpdated = False
+            else:
+                if opt.gene == markedSource.data['marked_genes'][seq2[0]]:
+                    geneUpdated = False
+                else:
+                    opt.gene = markedSource.data['marked_genes'][seq2[0]]
+                    geneUpdated = True
     # Clear the current plot.
     plotColumn.set(children=[])
 
@@ -110,23 +150,6 @@ def updateGene():
                        tran=[], full=[], partial=[], annot=[], start=[],
                        end=[], fileColor=[])
     codonSource.data = dict(x=[], y=[], color=[], size=[])
-    seq = geneSource.selected['1d']['indices']
-    if opt.gene is None:
-        opt.gene = Gene.value.strip()
-        geneUpdated = True
-    else:
-        if seq == [] or Sel.active == 0:
-            if opt.gene == Gene.value.strip():
-                geneUpdated = False
-            else:
-                opt.gene = Gene.value.strip()                  # get the gene name from UI, pass to a global variable opt
-                geneUpdated = True
-        else:
-            if opt.gene == geneSource.data['Gene'][seq[0]]:
-                geneUpdated = False
-            else:
-                opt.gene = geneSource.data['Gene'][seq[0]]
-                geneUpdated = True
 
     matchList = Matches.value.strip().split(',')       # get the list of pickle files from UI
     opt.matches = matchList
@@ -488,6 +511,32 @@ def saveFasta(attrname, old, new):
     Console.text = 'Console:\nSuccessfully saved'
 
 
+def markGene():
+    with open('gene.json', 'r') as f:
+        data = json.load(f)
+        f.close()
+    with open('gene.json', 'w+') as f:
+        if opt.gene not in data['marked_genes']:
+            data['marked_genes'].append(opt.gene)
+        f.write(json.dumps(data))
+        markedSource.data = data
+        f.truncate()
+        f.close()
+
+
+def unmarkGene():
+    with open('gene.json', 'r') as f:
+        data = json.load(f)
+        f.close()
+    with open('gene.json', 'w+') as f:
+        seq = markedSource.selected['1d']['indices']
+        data['marked_genes'].remove(markedSource.data['marked_genes'][seq[0]])
+        f.write(json.dumps(data))
+        markedSource.data = data
+        f.truncate()
+        f.close()
+
+
 def plotStartStop(tranList, blocks):
     '''Add start/stop codons to plot.'''
     codonDict = dict(x=[], y=[], color=[])
@@ -563,8 +612,10 @@ Height = TextInput(title="Transcripts height", value="8")
 Width = TextInput(title="Plot width", value="1000")
 Save = TextInput(title="Enter the folder name to save data in Fasta", value=None)
 button = Button(label='confirm', button_type="success")
-Sel = RadioButtonGroup(labels=["Enter from textbox", "Select from gene table"], active=0)
+Sel = RadioButtonGroup(labels=["Enter from textbox", "Select from gene table", "Select from marked genes"], active=0)
 Sort = RadioButtonGroup(labels=["Rank by Gene", "Rank by Transcripts"], active=1)
+mark = Button(label='mark this gene', button_type="success")
+unmark = Button(label='unmark this gene', button_type="success")
 
 opt = getParams(None, [], None, forMat=None)    # a object that contains all the inputs options for read data
 
@@ -577,11 +628,13 @@ geneColumns = [TableColumn(field="Gene", title="Gene"),
 geneCountTable = DataTable(source=geneSource, columns=geneColumns, sortable=False,
                            row_headers=False, width=280)
 
-paramColumns = [TableColumn(field="Parameter", title="Parameter"),
-                TableColumn(field="Description", title="Description")]
+markedColumns = [TableColumn(field="marked_genes", title="marked_genes")]
+markedGeneTable = DataTable(source=markedSource, columns=markedColumns, sortable=False, width=280)
 
 # make changes to the plot when widgets are updated
 button.on_click(updateGene)
+mark.on_click(markGene)
+unmark.on_click(unmarkGene)
 Full.on_change('value', selectTran)
 Partial.on_change('value', selectTran)
 Cluster.on_change('value', updateGroup)
@@ -595,5 +648,5 @@ Sort.on_change('active', updateGeneTable)
 # Layout interface.
 controls = [Console, GTF, Format, Matches, Height, Width, Full, Partial, Group, Cluster, Save]
 geneSelect = [Gene, button, Sel, Sort, geneCountTable]
-curdoc().add_root(row(widgetbox(controls), widgetbox(geneSelect), plotColumn))
+curdoc().add_root(row(widgetbox(controls), widgetbox(geneSelect), widgetbox(mark, unmark, markedGeneTable), plotColumn))
 curdoc().title = "Isoseq-browser"
