@@ -596,13 +596,12 @@ anno_file = args.anno_file or "gencode.vM9.annotation.gtf"
 
 # Create all widgets.
 GTF = TextInput(title="Annotation file", value=anno_file)
-Format = TextInput(title="Enter the format of annotation file, standard is gtf",
-                   value="standard")
-Matches = TextInput(title="MatchAnnot pickle files,e.g. of multiple files: a.pickle,b.pickle", value=input_file)
+Format = TextInput(title="Annotation file format, standard is gtf", value="standard")
+Matches = TextInput(title="MatchAnnot pickle files (ex: a.pickle,b.pickle)", value=input_file)
 Gene = TextInput(title="Select gene to visualize", value="BRCA1")
-Full = Slider(title="Full support threshold",
+Full = Slider(title="Full reads support threshold",
               value=0, start=0, end=30, step=1.0)
-Partial = Slider(title="Partial support threshold",
+Partial = Slider(title="Partial reads support threshold",
                  value=0, start=0, end=50, step=1.0)
 Group = CheckboxGroup(labels=["Group by file", "Group by similarity"],
                       active=[1])
