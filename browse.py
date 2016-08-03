@@ -612,8 +612,8 @@ Group = CheckboxGroup(labels=["Group by file", "Group by similarity"],
                       active=[1])
 Cluster = Slider(title="The number of groups",
                  value=3, start=1, end=15, step=1.0)
-Height = Slider(title="The height of transcripts", value=10, start=5, end=30, step=1)
-Width = Slider(title="The width of plot", value=800, start=400, end=1500, step=50)
+Height = Slider(title="Isoform height", value=10, start=5, end=30, step=1)
+Width = Slider(title="Plot width", value=800, start=400, end=1500, step=50)
 Save = TextInput(title="Enter the folder name to save data in Fasta", value=None)
 button = Button(label='confirm', button_type="success")
 Sel = RadioButtonGroup(labels=["Enter from textbox", "Select from gene table", "Select from marked genes"], active=0)
