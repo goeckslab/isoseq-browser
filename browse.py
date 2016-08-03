@@ -8,6 +8,7 @@ from bokeh.layouts import row, column, widgetbox
 from bokeh.palettes import brewer
 from bokeh.io import curdoc
 from bokeh.models.widgets import Slider, TextInput, PreText, DataTable, TableColumn, CheckboxGroup, Button, RadioButtonGroup
+from bokeh.models.callbacks import CustomJS
 from collections import Counter
 
 #
@@ -56,6 +57,10 @@ source = ColumnDataSource(data=sourceDict)
 geneSource = ColumnDataSource(data=geneDict)
 codonSource = ColumnDataSource(data=codonDict)
 markedSource = ColumnDataSource(data=markedDict)
+
+# Create fake data source for Height and Width sliders.
+slider_fake_source = ColumnDataSource(data=dict(value=[]))
+
 
 # Column that holds plot.
 plotColumn = column()
@@ -598,7 +603,7 @@ anno_file = args.anno_file or "gencode.vM9.annotation.gtf"
 GTF = TextInput(title="Annotation file", value=anno_file)
 Format = TextInput(title="Annotation file format, standard is gtf", value="standard")
 Matches = TextInput(title="MatchAnnot pickle files (ex: a.pickle,b.pickle)", value=input_file)
-Gene = TextInput(title="Select gene to visualize", value="BRCA1")
+Gene = TextInput(title="Gene to visualize", value="BRCA1")
 Full = Slider(title="Full reads support threshold",
               value=0, start=0, end=30, step=1.0)
 Partial = Slider(title="Partial reads support threshold",
@@ -607,8 +612,8 @@ Group = CheckboxGroup(labels=["Group by file", "Group by similarity"],
                       active=[1])
 Cluster = Slider(title="The number of groups",
                  value=3, start=1, end=15, step=1.0)
-Height = TextInput(title="Transcripts height", value="8")
-Width = TextInput(title="Plot width", value="1000")
+Height = Slider(title="The height of transcripts", value=10, start=5, end=30, step=1)
+Width = Slider(title="The width of plot", value=800, start=400, end=1500, step=50)
 Save = TextInput(title="Enter the folder name to save data in Fasta", value=None)
 button = Button(label='confirm', button_type="success")
 Sel = RadioButtonGroup(labels=["Enter from textbox", "Select from gene table", "Select from marked genes"], active=0)
@@ -639,13 +644,21 @@ Partial.on_change('value', selectTran)
 Cluster.on_change('value', updateGroup)
 Group.on_change('active', updateGroup)
 Save.on_change('value', saveFasta)
-Height.on_change('value', lambda attr, old, new: updateGene())
-Width.on_change('value', lambda attr, old, new: updateGene())
 tranSource.on_change('selected', selectTran)
 Sort.on_change('active', updateGeneTable)
+
+# Add mouseup callback on sliders.
+slider_fake_source.on_change('data', lambda attr, old, new: updateGene())
+for slider in [Height, Width]:
+    slider.callback_policy = "mouseup"
+    slider.callback = CustomJS(args=dict(source=slider_fake_source), code="""
+        source.data = { value: [cb_obj.value] }
+    """)
+
 
 # Layout interface.
 controls = [Console, GTF, Format, Matches, Height, Width, Full, Partial, Group, Cluster, Save]
 geneSelect = [Gene, button, Sel, Sort, geneCountTable]
 curdoc().add_root(row(widgetbox(controls), widgetbox(geneSelect), widgetbox(mark, unmark, markedGeneTable), plotColumn))
+curdoc().add_root(slider_fake_source)
 curdoc().title = "Isoseq-browser"
