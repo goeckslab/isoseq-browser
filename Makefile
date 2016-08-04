@@ -31,7 +31,7 @@ env:
 
 # Download precomputed MatchAnnot pickle file.
 $(MATCHES_PICKLE_FROM_DOWNLOAD):
-	# TODO: download file from lab website.
+	wget -O $(MATCHES_PICKLE_FROM_DOWNLOAD) http://goeckslab.org/files/mcf7_matchAnnot_results.pickle
 
 # Remove and clean up everything.
 clean:
