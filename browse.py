@@ -260,15 +260,17 @@ def updateGene():
         Console.text = 'Console:\nSuccess!'
 
 
-# update according to the change of grouping(clustering)
-def updateGroup(attrname, old, new):
+def updateGroup(attrname, old_num_clusters, new_num_clusters):
+    """
+    Update according to the change of grouping/clustering.
+    """
     sourceDict = source.data
     if 0 in Group.active:                 # if it is told to group by files
         sourceDict['color'] = sourceDict['fileColor']
     else:
         if 1 in Group.active:            # if it is told to group by clustering
             colors = list()
-            colors = [getColorFromDF(tran, colorDF) for tran in sourceDict['tran']]
+            colors = [getColorFromDF(tran, colorDF, new_num_clusters) for tran in sourceDict['tran']]
         else:
             colors = list()
             for i in sourceDict['annot']:
@@ -397,6 +399,7 @@ def getExonData(exonList, colorDF):
                       end=[], fileColor=[])
     columns = ['xs', 'ys', 'color', 'start', 'end', 'tran', 'full',
                'partial', 'annot', 'fileColor']
+    num_clusters = Cluster.value
     for myExon in exonList:
         exonSize = myExon.end - myExon.start + 1
         adjStart = myExon.adjStart
@@ -405,7 +408,8 @@ def getExonData(exonList, colorDF):
             color = COLORS[myExon.tran.source[0]]
         else:
             if colorDF is not None:
-                color = getColorFromDF(myExon.tran.name, colorDF)           # find out what group does the exon belongs
+                # Get transcript color based on grouping.
+                color = getColorFromDF(myExon.tran.name, colorDF, num_clusters)
             else:          # if the grouping effect is off, paint default color
                 if myExon.tran.annot:
                     color = COLORS[0]
@@ -425,13 +429,15 @@ def getExonData(exonList, colorDF):
     return sourceDict
 
 
-# get the color form grouped isoforms
-def getColorFromDF(exonName, colorDF):
-    if exonName not in list(colorDF.name):
+def getColorFromDF(transcript_name, colorDF, num_clusters):
+    """
+    Get transcript color based on number of clusters.
+    """
+    if transcript_name not in list(colorDF.name):
         color = COLORS[0]
     else:
-        row = colorDF.loc[colorDF['name'] == exonName]    # find out which transcript it is, and what group it belongs
-        groupName = 'group%s' % str(Cluster.value)          # how many groups are there
+        row = colorDF.loc[colorDF['name'] == transcript_name]    # find out which transcript it is, and what group it belongs
+        groupName = 'group%i' % num_clusters          # how many groups are there
         try:
             group = row[groupName].values[0]
             color = COLORS[group + 1]
@@ -659,6 +665,6 @@ for slider in [Height, Width]:
 # Layout interface.
 controls = [Console, GTF, Format, Matches, Height, Width, Full, Partial, Group, Cluster, Save]
 geneSelect = [Gene, button, Sel, Sort, geneCountTable]
-curdoc().add_root(row(widgetbox(controls), widgetbox(geneSelect), widgetbox(mark, unmark, markedGeneTable), plotColumn))
+curdoc().add_root( row( column(widgetbox(controls), widgetbox(geneSelect), widgetbox(mark, unmark, markedGeneTable)), plotColumn ) )
 curdoc().add_root(slider_fake_source)
 curdoc().title = "Isoseq-browser"

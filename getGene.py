@@ -448,14 +448,13 @@ def groupTran(tranList, exonList, cluster_num):
     distanceTable.columns = index
     distanceTable.index = index
 
-    # Group transcripts, n_clusters set how mant groups should be assigned
+    # Group transcripts, n_clusters set how many groups should be assigned
     colorDF = pd.DataFrame()
     colorDF['name'] = df['name']
     if len(colorDF) < cluster_num:
         cluster_num = len(colorDF)
     for i in range(cluster_num):
         group = KMeans(n_clusters=i + 1).fit_predict(distanceTable)
-        global groupName
         groupName = 'group%s' % str(i + 1)
         colorDF[groupName] = group
     return colorDF
