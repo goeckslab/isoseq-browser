@@ -3,14 +3,10 @@ import re
 import string
 from tt_log import logger
 import Annotations as anno
-from bokeh.palettes import brewer
 import Best as best
 import Cluster as cl
 import pandas as pd
 from sklearn.cluster import KMeans
-
-# color of isoforms
-COLORS = brewer["Spectral"][11]
 
 MIN_REGION_SIZE = 50
 FASTA_WRAP = 60                 # bases per fasta line
