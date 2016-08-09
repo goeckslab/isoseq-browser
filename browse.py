@@ -7,7 +7,7 @@ from bokeh.models import ColumnDataSource, HoverTool
 from bokeh.layouts import row, column, widgetbox
 from bokeh.palettes import brewer
 from bokeh.io import curdoc
-from bokeh.models.widgets import Slider, TextInput, PreText, DataTable, TableColumn, CheckboxGroup, Button, RadioButtonGroup
+from bokeh.models.widgets import Slider, TextInput, PreText, DataTable, TableColumn, CheckboxGroup, Button, RadioButtonGroup, RadioGroup, CheckboxButtonGroup
 from bokeh.models.callbacks import CustomJS
 from collections import Counter
 
@@ -36,10 +36,11 @@ geneDict = dict(Gene=[], Transcripts=[])
 codonDict = dict(x=[], y=[], color=[], size=[])
 try:
     with open('gene.json', 'r') as f:
-        markedDict = json.load(f)
+        data = json.load(f)
+        markedDict = {'marked_genes': data.keys()}
         f.close()
 except IOError:
-    markedDict = dict(marked_genes=[])
+    markedDict = dict()
     with open('gene.json', 'w') as f:
         json.dump(markedDict, f)
         f.close()
@@ -110,37 +111,61 @@ def updateGene():
     The "main" function of this app. At startup it reads the annotation and pickle file.
     When genes are changed, a new plot is created and drawn.
     """
-
     seq1 = geneSource.selected['1d']['indices']
     seq2 = markedSource.selected['1d']['indices']
-    if opt.gene is None:
-        opt.gene = Gene.value.strip()
-        geneUpdated = True
-    else:
-        if Sel.active == 0:
-            if opt.gene == Gene.value.strip():
-                geneUpdated = False
-            else:
-                opt.gene = Gene.value.strip()                  # get the gene name from UI, pass to a global variable opt
-                geneUpdated = True
-        elif Sel.active == 1:
-            if seq1 == []:
-                geneUpdated = False
-            else:
-                if opt.gene == geneSource.data['Gene'][seq1[0]]:
-                    geneUpdated = False
-                else:
-                    opt.gene = geneSource.data['Gene'][seq1[0]]
-                    geneUpdated = True
+    if Sel.active == 0:
+        if opt.gene == Gene.value.strip().upper():
+            geneUpdated = False
         else:
-            if seq2 == []:
+            opt.gene = Gene.value.strip().upper()                 # get the gene name from UI, pass to a global variable opt
+            geneUpdated = True
+    elif Sel.active == 1:
+        if seq1 == []:
+            geneUpdated = False
+        else:
+            if opt.gene == geneSource.data['Gene'][seq1[0]].upper():
                 geneUpdated = False
             else:
-                if opt.gene == markedSource.data['marked_genes'][seq2[0]]:
-                    geneUpdated = False
-                else:
-                    opt.gene = markedSource.data['marked_genes'][seq2[0]]
-                    geneUpdated = True
+                opt.gene = geneSource.data['Gene'][seq1[0]].upper()
+                Gene.value = opt.gene
+                geneUpdated = True
+    else:
+        if seq2 == []:
+            geneUpdated = False
+        else:
+            if opt.gene == markedSource.data['marked_genes'][seq2[0]].upper():
+                geneUpdated = False
+            else:
+                opt.gene = markedSource.data['marked_genes'][seq2[0]].upper()
+                Gene.value = opt.gene
+                geneUpdated = True
+    with open('gene.json', 'r') as f:
+        data = json.load(f)
+        if opt.gene in data.keys():
+            Mark.active = [0]
+            myDict = data[opt.gene]
+            opt.height = myDict['height']
+            Height.value = opt.height
+            opt.width = myDict['width']
+            Width.value = opt.width
+            opt.full = myDict['full']
+            Full.value = opt.full
+            opt.partial = myDict['partial']
+            Partial.value = opt.partial
+            opt.group = myDict['group']
+            Group.active = opt.group
+            opt.cluster = myDict['cluster']
+            Cluster.value = opt.cluster
+        else:
+            Mark.active = []
+            opt.height = Height.value
+            opt.width = Width.value
+            opt.full = Full.value
+            opt.partial = Partial.value
+            opt.group = Group.active
+            opt.cluster = Cluster.value
+        f.close()
+
     # Clear the current plot.
     plotColumn.set(children=[])
 
@@ -155,10 +180,8 @@ def updateGene():
                        tran=[], full=[], partial=[], annot=[], start=[],
                        end=[], fileColor=[])
     codonSource.data = dict(x=[], y=[], color=[], size=[])
-
-    matchList = Matches.value.strip().split(',')       # get the list of pickle files from UI
+    matchList = Matches.value.strip().replace(' ', '').split(',')       # get the list of pickle files from UI
     opt.matches = matchList
-
     # load the matched isoforms from pickle file
     Console.text = 'Console:\nReading pickle file...'
     if opt.clusterDict is None:                                                 # if it's the first time to load up pickle file
@@ -173,7 +196,6 @@ def updateGene():
     else:
         if set(opt.clusterDict.keys()) != set(matchList):            # if the pickle files are updated, do the previous thing
             try:
-                clusterDict = dict()
                 clusterDict = getGene.getMatchedIsoforms(getParams(None, matchList, None))
                 opt.clusterDict = clusterDict
                 howManyIsoforms(clusterDict, matchList)
@@ -183,7 +205,6 @@ def updateGene():
                 isMatch = False
         else:                                                       # if pickle file is not updated, do nothing
             isMatch = True
-
     Console.text = 'Console:\nReading annotation file...'
     if opt.annotations is None:                             # if it's the first time to load up pickle file
         try:
@@ -207,8 +228,8 @@ def updateGene():
         else:                                               # if the pickle files are updated, do the previous thing
             isAnnot = True
 
-    global tranNum, colorDF, chromosome, strand
-    tranList, exonList = selectGene(opt, isAnnot, isMatch)                       # select transcripts by gene
+    global tranNum, colorDF, chromosome, strand, opt
+    tranList, exonList = selectGene(isAnnot, isMatch)                       # select transcripts by gene
     chromosome = getChromosome(tranList)                                         # find out which chromosome does the gene locate
 
     strand = exonList[0].strand                            # which strand does the gene locate on
@@ -227,8 +248,8 @@ def updateGene():
     Console.text = 'Console:\nCreating plot...'
 
     # Create the plot to visualize gene's transcripts.
-    height = int(Height.value) * 2 * (tranNum + 4)        # set plot height using transcript height
-    width = int(Width.value)
+    height = int(opt.height) * 2 * (tranNum + 4)        # set plot height using transcript height
+    width = int(opt.width)
 
     plot = createPlot(height=height, width=width)
     plotColumn.set(children=[plot])
@@ -238,7 +259,7 @@ def updateGene():
     plot.y_range.factors = tranNames[::-1]             # set the y axis tick to the transcripts names
 
     Console.text = 'Console:\nGrouping...'
-    if 1 in Group.active and isMatch is True:
+    if 1 in opt.group and isMatch is True:
         if geneUpdated:
             colorDF = getGene.groupTran(tranList, exonList, 15)          # group the transcripts by similarities
     else:
@@ -247,6 +268,7 @@ def updateGene():
     codonDict = plotStartStop(tranList, blocks)         # get the location of start, stop codons
     codonSource.data = codonDict
     source.data = sourceDict
+
     # update the data used for plotting boundaries and hover block
     blockDict, tranDict = getBoundaryData(blocks, chromosome)              # get the data of each block that can be directly used to plot
     blockSource.data = blockDict
@@ -264,13 +286,15 @@ def updateGroup(attrname, old_num_clusters, new_num_clusters):
     """
     Update according to the change of grouping/clustering.
     """
+    opt.cluster = Cluster.value
+    opt.group = Group.active
     sourceDict = source.data
-    if 0 in Group.active:                 # if it is told to group by files
+    if 0 in opt.group:                 # if it is told to group by files
         sourceDict['color'] = sourceDict['fileColor']
     else:
-        if 1 in Group.active:            # if it is told to group by clustering
+        if 1 in opt.group:            # if it is told to group by clustering
             colors = list()
-            colors = [getColorFromDF(tran, colorDF, new_num_clusters) for tran in sourceDict['tran']]
+            colors = [getColorFromDF(tran, colorDF, opt.cluster) for tran in sourceDict['tran']]
         else:
             colors = list()
             for i in sourceDict['annot']:
@@ -289,11 +313,13 @@ def updateHeightWidth(attrname, old, new):
     height/width change in updateGene(). When Bokeh bug is fixed, plot should
     be created once and updated using this function.
     """
+    opt.height = Height.value
+    opt.width = Width.value
     sourceDict = source.data
-    sourceDict['height'] = [int(Height.value) for x in range(len(sourceDict['xs']))]
+    sourceDict['height'] = [int(opt.height) for x in range(len(sourceDict['xs']))]
     source.data = sourceDict
     codonDict = codonSource.data
-    codonDict['size'] = [int(Height.value) * 1.2 for x in range(len(codonDict['x']))]    # adjust the codon size accordingly
+    codonDict['size'] = [int(opt.height) * 1.2 for x in range(len(codonDict['x']))]    # adjust the codon size accordingly
     codonSource.data = codonDict
 
     # Setting plot height, width is broken in Bokeh version 0.12.0, so this will not work:
@@ -318,6 +344,8 @@ def updateGeneTable(attrname, old, new):
 
 # show/hide transcripts according to UI selection, implemented by changing the alpha values
 def selectTran(attr, old, new):
+    opt.full = Full.value
+    opt.partial = Partial.value
     if tranSource.selected['1d']['indices'] == []:          # if no transcript is selected
         sourceDict = source.data
         # change alpha value accordingly
@@ -356,7 +384,7 @@ def selectTran(attr, old, new):
 def getAlpha(index, x):
     if index is None:           # nothing is selected
         if x[0] is False:       # not an annotation exon
-            if x[1] < Full.value or x[2] < Partial.value:   # low full/partial reads support
+            if x[1] < opt.full or x[2] < opt.partial:   # low full/partial reads support
                 return 0
             else:
                 return 1
@@ -364,7 +392,7 @@ def getAlpha(index, x):
             return 1
     else:                   # a transcript is selected
         if x[1] is False:   # if it's not an annotation exon
-            if x[2] < Full.value or x[3] < Partial.value:       # low full/partial reads support
+            if x[2] < opt.full or x[3] < opt.partial:       # low full/partial reads support
                 return 0
             else:
                 if index + 1 == x[0][0]:    # if the transcript is selected
@@ -379,7 +407,7 @@ def getAlpha(index, x):
 
 
 # Select isoforms of a particular gene
-def selectGene(opt, isAnnot, isMatch):
+def selectGene(isAnnot, isMatch):
     tranList = list()                              # list of Transcript objects
     exonList = list()                              # list of Exon objects
     if isAnnot:                                    # read the reference file
@@ -388,7 +416,10 @@ def selectGene(opt, isAnnot, isMatch):
         except RuntimeError:
             Console.text = 'Console:\n%s not found in annotation \nfile' % opt.gene
     if isMatch:                                    # read the pickle file
-        getGene.getGeneFromMatches(opt, tranList, exonList)
+        try:
+            getGene.getGeneFromMatches(opt, tranList, exonList)
+        except RuntimeError:
+            Console.text = 'Console:\n%s not found in pickle \nfile' % opt.gene
     return tranList, exonList
 
 
@@ -399,12 +430,12 @@ def getExonData(exonList, colorDF):
                       end=[], fileColor=[])
     columns = ['xs', 'ys', 'color', 'start', 'end', 'tran', 'full',
                'partial', 'annot', 'fileColor']
-    num_clusters = Cluster.value
+    num_clusters = opt.cluster
     for myExon in exonList:
         exonSize = myExon.end - myExon.start + 1
         adjStart = myExon.adjStart
 
-        if 0 in Group.active:       # if group by files, pass
+        if 0 in opt.group:       # if group by files, pass
             color = COLORS[myExon.tran.source[0]]
         else:
             if colorDF is not None:
@@ -425,7 +456,7 @@ def getExonData(exonList, colorDF):
             sourceDict[columns[ix]].append(values[ix])
 
     sourceDict['line_alpha'] = [1 for x in range(len(sourceDict['xs']))]
-    sourceDict['height'] = [int(Height.value) for x in range(len(sourceDict['xs']))]
+    sourceDict['height'] = [int(opt.height) for x in range(len(sourceDict['xs']))]
     return sourceDict
 
 
@@ -437,7 +468,7 @@ def getColorFromDF(transcript_name, colorDF, num_clusters):
         color = COLORS[0]
     else:
         row = colorDF.loc[colorDF['name'] == transcript_name]    # find out which transcript it is, and what group it belongs
-        groupName = 'group%i' % num_clusters          # how many groups are there
+        groupName = 'group%d' % num_clusters          # how many groups are there
         try:
             group = row[groupName].values[0]
             color = COLORS[group + 1]
@@ -522,30 +553,31 @@ def saveFasta(attrname, old, new):
     Console.text = 'Console:\nSuccessfully saved'
 
 
-def markGene():
-    with open('gene.json', 'r') as f:
-        data = json.load(f)
-        f.close()
-    with open('gene.json', 'w+') as f:
-        if opt.gene not in data['marked_genes']:
-            data['marked_genes'].append(opt.gene)
-        f.write(json.dumps(data))
-        markedSource.data = data
-        f.truncate()
-        f.close()
-
-
-def unmarkGene():
-    with open('gene.json', 'r') as f:
-        data = json.load(f)
-        f.close()
-    with open('gene.json', 'w+') as f:
-        seq = markedSource.selected['1d']['indices']
-        data['marked_genes'].remove(markedSource.data['marked_genes'][seq[0]])
-        f.write(json.dumps(data))
-        markedSource.data = data
-        f.truncate()
-        f.close()
+def markGene(attrname, old, new):
+    if 0 in Mark.active:
+        with open('gene.json', 'r') as f:
+            data = json.load(f)
+            f.close()
+        with open('gene.json', 'w+') as f:
+            paramDict = {'height': opt.height, 'width': opt.width, 'full': opt.full,
+                         'partial': opt.partial, 'cluster': opt.cluster, 'group': opt.group}
+            if opt.gene not in data.keys():
+                data[opt.gene] = paramDict
+            f.write(json.dumps(data))
+            markedSource.data = dict(marked_genes=data.keys())
+            f.truncate()
+            f.close()
+    else:
+        with open('gene.json', 'r') as f:
+            data = json.load(f)
+            f.close()
+        with open('gene.json', 'w+') as f:
+            if opt.gene in data:
+                data.pop(opt.gene, None)
+            f.write(json.dumps(data))
+            markedSource.data = dict(marked_genes=data.keys())
+            f.truncate()
+            f.close()
 
 
 def plotStartStop(tranList, blocks):
@@ -563,7 +595,7 @@ def plotStartStop(tranList, blocks):
                 xPos = findCodon(tran.stopcodon, blocks)
                 codonDict['x'].append(xPos)
                 codonDict['y'].append(tranNum - tran.tranIx)
-    codonDict['size'] = [int(Height.value) * 1.2 for x in range(len(codonDict['x']))]
+    codonDict['size'] = [int(opt.height) * 1.2 for x in range(len(codonDict['x']))]
     return codonDict
 
 
@@ -582,15 +614,22 @@ def findCodon(posit, blocks):
 
 # a class containing all the input parameters
 class getParams(object):
-    def __init__(self, gtf, matches, gene, forMat="standard", fasta=None,
-                 annotations=None, clusterDict=None):
+    def __init__(self, gtf, matches, gene, format="standard", fasta=None,
+                 annotations=None, clusterDict=None, height=None, width=None,
+                 full=None, partial=None, group=None, cluster=None):
         self.gtf = gtf                              # reference genome file
         self.matches = matches                      # list of matched files
         self.gene = gene                            # which gene to load
-        self.format = forMat                        # format is a keyword
+        self.format = format                        # format is a keyword
         self.fasta = fasta                          # output isoforms to fasta
         self.annotations = annotations              # hold annotation dictionary in RAM
         self.clusterDict = clusterDict              # hold isoforms information in RAM
+        self.height = height
+        self.width = width
+        self.full = full
+        self.partial = partial
+        self.group = group
+        self.cluster = cluster
 
 
 #
@@ -608,7 +647,7 @@ anno_file = args.anno_file or "gencode.vM9.annotation.gtf"
 # Create all widgets.
 GTF = TextInput(title="Annotation file", value=anno_file)
 Format = TextInput(title="Annotation file format, standard is gtf", value="standard")
-Matches = TextInput(title="MatchAnnot pickle files (ex: a.pickle,b.pickle)", value=input_file)
+Matches = TextInput(title="MatchAnnot pickle files (ex: a.pickle, b.pickle)", value=input_file)
 Gene = TextInput(title="Gene to visualize", value="BRCA1")
 Full = Slider(title="Full reads support threshold",
               value=0, start=0, end=30, step=1.0)
@@ -618,16 +657,15 @@ Group = CheckboxGroup(labels=["Group by file", "Group by similarity"],
                       active=[1])
 Cluster = Slider(title="The number of groups",
                  value=3, start=1, end=15, step=1.0)
-Height = Slider(title="Isoform height", value=10, start=5, end=30, step=1)
-Width = Slider(title="Plot width", value=800, start=400, end=1500, step=50)
+Height = Slider(title="Transcript height", value=10, start=5, end=30, step=1)
+Width = Slider(title="Plot width", value=1200, start=400, end=1500, step=50)
 Save = TextInput(title="Enter the folder name to save data in Fasta", value=None)
-button = Button(label='confirm', button_type="success")
-Sel = RadioButtonGroup(labels=["Enter from textbox", "Select from gene table", "Select from marked genes"], active=0)
+button = Button(label='GO', button_type="success")
+Sel = RadioGroup(labels=["Enter from textbox", "Select from gene table", "Select from marked genes"], active=0)
 Sort = RadioButtonGroup(labels=["Rank by Gene", "Rank by Transcripts"], active=1)
-mark = Button(label='mark this gene', button_type="success")
-unmark = Button(label='unmark this gene', button_type="success")
+Mark = CheckboxButtonGroup(labels=["Mark this Gene"], active=[])
 
-opt = getParams(None, [], None, forMat=None)    # a object that contains all the inputs options for read data
+opt = getParams(None, [], None, format=None)    # a object that contains all the inputs options for read data
 
 # the console box
 Console = PreText(text='Console:\nStart visualize by entering \nannotations, pickle file and\n gene. Press Enter to submit.\n', height=70)
@@ -643,8 +681,7 @@ markedGeneTable = DataTable(source=markedSource, columns=markedColumns, sortable
 
 # make changes to the plot when widgets are updated
 button.on_click(updateGene)
-mark.on_click(markGene)
-unmark.on_click(unmarkGene)
+Mark.on_change('active', markGene)
 Full.on_change('value', selectTran)
 Partial.on_change('value', selectTran)
 Cluster.on_change('value', updateGroup)
@@ -663,8 +700,13 @@ for slider in [Height, Width]:
 
 
 # Layout interface.
-controls = [Console, GTF, Format, Matches, Height, Width, Full, Partial, Group, Cluster, Save]
-geneSelect = [Gene, button, Sel, Sort, geneCountTable]
-curdoc().add_root( row( column(widgetbox(controls), widgetbox(geneSelect), widgetbox(mark, unmark, markedGeneTable)), plotColumn ) )
+controls1 = [GTF, Height, Width]
+controls2 = [Matches, Full, Partial]
+controls3 = [Format, Group, Cluster]
+controls4 = [Save]
+geneSelect = [Sel, Gene, button, Sort, geneCountTable, Mark, markedGeneTable]
+curdoc().add_root(column(row(Console, widgetbox(controls1), widgetbox(controls2, width=400),
+                  widgetbox(controls3), widgetbox(controls4)), row(widgetbox(geneSelect), plotColumn)))
+# curdoc().add_root(row(column(widgetbox(controls), widgetbox(geneSelect), widgetbox(mark, unmark, markedGeneTable)), plotColumn))
 curdoc().add_root(slider_fake_source)
 curdoc().title = "Isoseq-browser"
