@@ -37,7 +37,7 @@ codonDict = dict(x=[], y=[], color=[], size=[])
 try:
     with open('gene.json', 'r') as f:
         data = json.load(f)
-        markedDict = {'marked_genes': data.keys()}
+        markedDict = {'Gene': data.keys()}
         f.close()
 except IOError:
     markedDict = dict()
@@ -543,7 +543,7 @@ def markGene(attrname, old, new):
             if opt.gene not in data.keys():
                 data[opt.gene] = paramDict
             f.write(json.dumps(data))
-            markedSource.data = dict(marked_genes=data.keys())
+            markedSource.data = dict(Gene=data.keys())
             f.truncate()
             f.close()
     else:
@@ -554,7 +554,7 @@ def markGene(attrname, old, new):
             if opt.gene in data:
                 data.pop(opt.gene, None)
             f.write(json.dumps(data))
-            markedSource.data = dict(marked_genes=data.keys())
+            markedSource.data = dict(Gene=data.keys())
             f.truncate()
             f.close()
 
@@ -637,7 +637,7 @@ Group = CheckboxGroup(labels=["Group by file", "Group by similarity"],
 Cluster = Slider(title="Number of isoform groups",
                  value=3, start=1, end=15, step=1.0)
 Height = Slider(title="Transcript height", value=10, start=5, end=30, step=1)
-Width = Slider(title="Plot width", value=1200, start=400, end=1500, step=50)
+Width = Slider(title="Plot width", value=800, start=400, end=1500, step=50)
 Save = TextInput(title="Enter the folder name to save data in Fasta", value=None)
 button = Button(label='GO', button_type="success")
 Sort = RadioButtonGroup(labels=["Rank by Gene", "Rank by Transcripts"], active=1)
@@ -654,7 +654,7 @@ geneColumns = [TableColumn(field="Gene", title="Gene"),
                TableColumn(field="Transcripts", title="Isoforms")]
 geneCountTable = DataTable(source=geneSource, columns=geneColumns, sortable=False,
                            row_headers=False, width=280)
-markedColumns = [TableColumn(field="marked_genes", title="Saved genes")]
+markedColumns = [TableColumn(field="Gene", title="Saved genes")]
 markedGeneTable = DataTable(source=markedSource, columns=markedColumns, sortable=False, width=280, row_headers=False)
 
 # make changes to the plot when widgets are updated
