@@ -655,7 +655,7 @@ Partial = Slider(title="Partial reads support threshold",
                  value=0, start=0, end=50, step=1.0)
 Group = CheckboxGroup(labels=["Group by file", "Group by similarity"],
                       active=[1])
-Cluster = Slider(title="The number of groups",
+Cluster = Slider(title="Number of isoform groups",
                  value=3, start=1, end=15, step=1.0)
 Height = Slider(title="Transcript height", value=10, start=5, end=30, step=1)
 Width = Slider(title="Plot width", value=1200, start=400, end=1500, step=50)
@@ -663,7 +663,7 @@ Save = TextInput(title="Enter the folder name to save data in Fasta", value=None
 button = Button(label='GO', button_type="success")
 Sel = RadioGroup(labels=["Enter from textbox", "Select from gene table", "Select from marked genes"], active=0)
 Sort = RadioButtonGroup(labels=["Rank by Gene", "Rank by Transcripts"], active=1)
-Mark = CheckboxButtonGroup(labels=["Mark this Gene"], active=[])
+Mark = CheckboxButtonGroup(labels=["Save gene"], active=[])
 
 opt = getParams(None, [], None, format=None)    # a object that contains all the inputs options for read data
 
@@ -672,12 +672,11 @@ Console = PreText(text='Console:\nStart visualize by entering \nannotations, pic
 
 # a table of with all the genes in the match files, and how many isoforms in each gene
 geneColumns = [TableColumn(field="Gene", title="Gene"),
-               TableColumn(field="Transcripts", title="Transcripts")]
-geneCountTable = DataTable(source=geneSource, columns=geneColumns, sortable=False,
-                           row_headers=False, width=280)
+               TableColumn(field="Transcripts", title="Isoforms")]
+geneCountTable = DataTable(source=geneSource, columns=geneColumns, sortable=False, row_headers=False)
 
-markedColumns = [TableColumn(field="marked_genes", title="marked_genes")]
-markedGeneTable = DataTable(source=markedSource, columns=markedColumns, sortable=False, width=280)
+markedColumns = [TableColumn(field="marked_genes", title="Saved genes")]
+markedGeneTable = DataTable(source=markedSource, columns=markedColumns, sortable=False, row_headers=False)
 
 # make changes to the plot when widgets are updated
 button.on_click(updateGene)
@@ -700,13 +699,10 @@ for slider in [Height, Width]:
 
 
 # Layout interface.
-controls1 = [GTF, Height, Width]
-controls2 = [Matches, Full, Partial]
-controls3 = [Format, Group, Cluster]
-controls4 = [Save]
-geneSelect = [Sel, Gene, button, Sort, geneCountTable, Mark, markedGeneTable]
-curdoc().add_root(column(row(Console, widgetbox(controls1), widgetbox(controls2, width=400),
-                  widgetbox(controls3), widgetbox(controls4)), row(widgetbox(geneSelect), plotColumn)))
-# curdoc().add_root(row(column(widgetbox(controls), widgetbox(geneSelect), widgetbox(mark, unmark, markedGeneTable)), plotColumn))
+inputs_and_outputs = [Console, GTF, Matches, Format, Save]
+plot_controls = [Gene, button, Group, Cluster, Full, Partial, Height, Width, Sel, Sort, geneCountTable, Mark, markedGeneTable]
+
+curdoc().add_root(row( row(inputs_and_outputs), row(widgetbox(plot_controls), plotColumn) ) )
+
 curdoc().add_root(slider_fake_source)
-curdoc().title = "Isoseq-browser"
+curdoc().title = "Iso-Seq Browser"
