@@ -111,34 +111,13 @@ def updateGene():
     The "main" function of this app. At startup it reads the annotation and pickle file.
     When genes are changed, a new plot is created and drawn.
     """
-    seq1 = geneSource.selected['1d']['indices']
-    seq2 = markedSource.selected['1d']['indices']
-    if Sel.active == 0:
-        if opt.gene == Gene.value.strip().upper():
-            geneUpdated = False
-        else:
-            opt.gene = Gene.value.strip().upper()                 # get the gene name from UI, pass to a global variable opt
-            geneUpdated = True
-    elif Sel.active == 1:
-        if seq1 == []:
-            geneUpdated = False
-        else:
-            if opt.gene == geneSource.data['Gene'][seq1[0]].upper():
-                geneUpdated = False
-            else:
-                opt.gene = geneSource.data['Gene'][seq1[0]].upper()
-                Gene.value = opt.gene
-                geneUpdated = True
+
+    if opt.gene == Gene.value.strip().upper():
+        geneUpdated = False
     else:
-        if seq2 == []:
-            geneUpdated = False
-        else:
-            if opt.gene == markedSource.data['marked_genes'][seq2[0]].upper():
-                geneUpdated = False
-            else:
-                opt.gene = markedSource.data['marked_genes'][seq2[0]].upper()
-                Gene.value = opt.gene
-                geneUpdated = True
+        opt.gene = Gene.value.strip().upper()                 # get the gene name from UI, pass to a global variable opt
+        geneUpdated = True
+
     with open('gene.json', 'r') as f:
         data = json.load(f)
         if opt.gene in data.keys():
@@ -253,7 +232,7 @@ def updateGene():
 
     plot = createPlot(height=height, width=width)
     plotColumn.set(children=[plot])
-    plot.title.text = "%s transcripts" % opt.gene         # update the title of plot
+    plot.title.text = "%s isoforms" % opt.gene         # update the title of plot
 
     # p.height = Height.value * 2 * (tranNum + 4)       # set the height of plot according to the length of transcripts
     plot.y_range.factors = tranNames[::-1]             # set the y axis tick to the transcripts names
@@ -661,7 +640,6 @@ Height = Slider(title="Transcript height", value=10, start=5, end=30, step=1)
 Width = Slider(title="Plot width", value=1200, start=400, end=1500, step=50)
 Save = TextInput(title="Enter the folder name to save data in Fasta", value=None)
 button = Button(label='GO', button_type="success")
-Sel = RadioGroup(labels=["Enter from textbox", "Select from gene table", "Select from marked genes"], active=0)
 Sort = RadioButtonGroup(labels=["Rank by Gene", "Rank by Transcripts"], active=1)
 Mark = CheckboxButtonGroup(labels=["Save gene"], active=[])
 
@@ -670,13 +648,14 @@ opt = getParams(None, [], None, format=None)    # a object that contains all the
 # the console box
 Console = PreText(text='Console:\nStart visualize by entering \nannotations, pickle file and\n gene. Press Enter to submit.\n', height=70)
 
+
 # a table of with all the genes in the match files, and how many isoforms in each gene
 geneColumns = [TableColumn(field="Gene", title="Gene"),
                TableColumn(field="Transcripts", title="Isoforms")]
-geneCountTable = DataTable(source=geneSource, columns=geneColumns, sortable=False, row_headers=False)
-
+geneCountTable = DataTable(source=geneSource, columns=geneColumns, sortable=False,
+                           row_headers=False, width=280)
 markedColumns = [TableColumn(field="marked_genes", title="Saved genes")]
-markedGeneTable = DataTable(source=markedSource, columns=markedColumns, sortable=False, row_headers=False)
+markedGeneTable = DataTable(source=markedSource, columns=markedColumns, sortable=False, width=280, row_headers=False)
 
 # make changes to the plot when widgets are updated
 button.on_click(updateGene)
@@ -697,10 +676,24 @@ for slider in [Height, Width]:
         source.data = { value: [cb_obj.value] }
     """)
 
+# Add handlers for selecting genes from tables. Handlers update the Gene textinput
+# and updates the plot.
+def add_selected_handler(table):
+    data_source = table.source
+
+    # Callback updates Gene value with selected gene.
+    def internal_callback(attr, old, new):
+        selected_index = new["1d"]["indices"][0]
+        Gene.value = data_source.data['Gene'][selected_index]
+        updateGene()
+    data_source.on_change("selected", internal_callback)
+add_selected_handler(geneCountTable)
+add_selected_handler(markedGeneTable)
+
 
 # Layout interface.
 inputs_and_outputs = [Console, GTF, Matches, Format, Save]
-plot_controls = [Gene, button, Group, Cluster, Full, Partial, Height, Width, Sel, Sort, geneCountTable, Mark, markedGeneTable]
+plot_controls = [Gene, button, Group, Cluster, Full, Partial, Height, Width, Sort, geneCountTable, Mark, markedGeneTable]
 
 curdoc().add_root(row( row(inputs_and_outputs), row(widgetbox(plot_controls), plotColumn) ) )
 
