@@ -106,7 +106,7 @@ def createPlot(height=600, width=1200):
     return p
 
 
-def updateGene():
+def updateGene(use_saved_settings=False):
     """
     The "main" function of this app. At startup it reads the annotation and pickle file.
     When genes are changed, a new plot is created and drawn.
@@ -120,7 +120,7 @@ def updateGene():
 
     with open('gene.json', 'r') as f:
         data = json.load(f)
-        if opt.gene in data.keys():
+        if use_saved_settings and opt.gene in data.keys():
             Mark.active = [0]
             myDict = data[opt.gene]
             opt.height = myDict['height']
@@ -678,17 +678,17 @@ for slider in [Height, Width]:
 
 # Add handlers for selecting genes from tables. Handlers update the Gene textinput
 # and updates the plot.
-def add_selected_handler(table):
+def add_selected_handler(table, use_saved_settings):
     data_source = table.source
 
     # Callback updates Gene value with selected gene.
     def internal_callback(attr, old, new):
         selected_index = new["1d"]["indices"][0]
         Gene.value = data_source.data['Gene'][selected_index]
-        updateGene()
+        updateGene(use_saved_settings)
     data_source.on_change("selected", internal_callback)
-add_selected_handler(geneCountTable)
-add_selected_handler(markedGeneTable)
+add_selected_handler(geneCountTable, False)
+add_selected_handler(markedGeneTable, True)
 
 
 # Layout interface.
