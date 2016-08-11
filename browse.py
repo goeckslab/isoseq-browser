@@ -687,6 +687,7 @@ def add_selected_handler(table, use_saved_settings):
         Gene.value = data_source.data['Gene'][selected_index]
         updateGene(use_saved_settings)
     data_source.on_change("selected", internal_callback)
+
 add_selected_handler(geneCountTable, False)
 add_selected_handler(markedGeneTable, True)
 

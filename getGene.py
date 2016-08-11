@@ -7,6 +7,7 @@ import Best as best
 import Cluster as cl
 import pandas as pd
 from sklearn.cluster import KMeans
+import numpy as np
 
 MIN_REGION_SIZE = 50
 FASTA_WRAP = 60                 # bases per fasta line
@@ -390,8 +391,11 @@ def writeFasta(opt, cluster):
     handle.close()
 
 
-# group transcripts by similarities
 def groupTran(tranList, exonList, cluster_num):
+    """
+    Group transcripts by exon/intron similarities.
+    """
+
     # minVal is the minimum starting point of all the transcripts,
     # maxVal stands for maximum
     maxVal = 0
@@ -411,6 +415,7 @@ def groupTran(tranList, exonList, cluster_num):
     df['max'] = maxVal
     df['name'] = df.apply(getName, axis=1)
     df['exons'] = df.apply(getExon, axis=1)
+
     # Build a matrix contains only true and false
     #
     #   Transcript1:    -----    ----  -- -------
@@ -434,14 +439,27 @@ def groupTran(tranList, exonList, cluster_num):
     #    The number can be interpreted as the similarity between each two
     #  transcript. 0 means they are exactly same while 1 means they have
     # no overlap region.
+
+    # Create the distance matrix efficiently by noting that it is symmetrical and performing the following steps:
+    # (1) Initialize matrix with all zeros, which covers the diagonals;
+    # (2) calculate distances for only entries to the bottom-left of the diagonal;
+    # (3) add the matrix and its transpose to fill in the entries to the top-right of the diagonal.
+    # NOTE: if distance function changes, then need to revisit this code.
     length = len(df)
+    matrix = np.full((length, length), 0.0)
+    for cur_index in range(1, length):
+        matrix[cur_index][0:cur_index] = [calcDis(df, cur_index, i) for i in range(cur_index)]
+    matrix = matrix + matrix.T
+
+    # Create dataframe distance table.
     index = df['name']
-    matrix = [[calcDis(df, i, j) for i in range(length)] for j in range(length)]
     distanceTable = pd.DataFrame()
     distanceTable = pd.DataFrame(matrix)
     distanceTable.columns = index
     distanceTable.index = index
+
     # Group transcripts, n_clusters set how many groups should be assigned
+
     colorDF = pd.DataFrame()
     colorDF['name'] = df['name']
     if len(colorDF) < cluster_num:
@@ -450,6 +468,7 @@ def groupTran(tranList, exonList, cluster_num):
         group = KMeans(n_clusters=i + 1).fit_predict(distanceTable)
         groupName = 'group%s' % str(i + 1)
         colorDF[groupName] = group
+
     return colorDF
 
 
