@@ -2,7 +2,7 @@
 
 ![alt text](BRCA1.png)
 
-Iso-Seq Browser (ISB) is an interactive visual analytics tool for long-read RNA sequencing data produced by [Pacific Biosciences’ isoform sequencing (Iso-Seq) techniques](http://www.pacb.com/blog/intro-to-iso-seq-method-full-leng/). Key features of ISB are: 1) a web-based interface with zooming and exon highlighting for exploring reference gene transcripts and novel gene isoforms, 2) automated grouping of transcripts and isoforms by similarity, 3) many customization features for data exploration and creating publication ready figures, and 4) exporting selected isoforms into fasta files for further analysis. ISB builds on the excellent [MatchAnnot](https://github.com/TomSkelly/MatchAnnot) and [Isoview](https://github.com/JMF47/IsoView) tools, both of which provides analyses for Iso-Seq data.
+Iso-Seq Browser (ISB) is an interactive visual analytics tool for long-read RNA sequencing data produced by [Pacific Biosciences’ isoform sequencing (Iso-Seq) techniques](http://www.pacb.com/blog/intro-to-iso-seq-method-full-leng/). Key features of ISB are: 1) an exon-only web-based interface with zooming and exon highlighting for exploring reference gene transcripts and novel gene isoforms, 2) automated grouping of transcripts and isoforms by similarity, 3) many customization features for data exploration and creating publication ready figures, and 4) exporting selected isoforms into fasta files for further analysis. ISB builds on the excellent [MatchAnnot](https://github.com/TomSkelly/MatchAnnot) and [Isoview](https://github.com/JMF47/IsoView) tools, both of which provides analyses for Iso-Seq data.
 
 ISB is written in Python and uses [Conda](http://conda.pydata.org/) for package management.
 ___
