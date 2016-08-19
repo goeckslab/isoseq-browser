@@ -248,6 +248,21 @@ def updateGene():
     allBlockSource.data = blockDict
     tranSource.data = tranDict
 
+    if 1 in opt.group and isMatch is True:
+        if geneUpdated:
+            colorDF = getGene.groupTran(tranList, exonList, 15)          # group the transcripts by similarities
+    else:
+        colorDF = None
+    colors = list()
+    if colorDF is not None:
+        for myExon in exonList:
+            # Get transcript color based on grouping.
+            color = getColorFromDF(myExon.tran.name, colorDF, opt.cluster)
+            colors.append(color)
+    if len(colors) > 0:
+        sourceDict['color'] = colors
+        source.data = sourceDict
+
     Console.text = 'Console:\nGrouping...'
     if 1 in opt.group and isMatch is True:
         if geneUpdated:
@@ -420,7 +435,6 @@ def getExonData(exonList):
                       end=[], fileColor=[])
     columns = ['xs', 'ys', 'color', 'start', 'end', 'tran', 'full',
                'partial', 'annot', 'fileColor']
-    # num_clusters = opt.cluster
     for myExon in exonList:
         exonSize = myExon.end - myExon.start + 1
         adjStart = myExon.adjStart
@@ -428,10 +442,6 @@ def getExonData(exonList):
         if 0 in opt.group:       # if group by files, pass
             color = COLORS[myExon.tran.source[0]]
         else:
-            # if colorDF is not None:
-            #     # Get transcript color based on grouping.
-            #     color = getColorFromDF(myExon.tran.name, colorDF, num_clusters)
-            # else:          # if the grouping effect is off, paint default color
             if myExon.tran.annot:
                 color = COLORS[0]
             else:
