@@ -42,6 +42,7 @@ def getGeneFromAnnotation(opt, tranList, exonList):
         else:     # standard format
             annotList = anno.AnnotationList(opt.gtf)
     allGenes = annotList.getGeneDict()
+    allGenes.update({k.upper(): v for k, v in allGenes.iteritems()})
     if opt.gene not in allGenes:
         raise RuntimeError('gene %s is not in the annotation file' % opt.gene)
     geneList = allGenes[opt.gene]       # a list of Annotation objects
@@ -80,7 +81,6 @@ def getGeneFromMatches(opt, tranList, exonList):
 
     if opt.matches is None:
         return tranList, exonList
-
     localList = list()                                                 # temporary list of clusters
     totClusters = 0
     for ix, matchFile in enumerate(opt.matches):                            # --matches may have been specified more thn once
@@ -89,8 +89,7 @@ def getGeneFromMatches(opt, tranList, exonList):
             clusterDict = opt.clusterDict[matchFile]
         else:
             clusterDict = cl.ClusterDict.fromPickle(matchFile)            # pickle file produced by matchAnnot.py
-
-        for cluster in clusterDict.getClustersForGene(opt.gene):       # cluster is Cluster object
+        for cluster in getClustersForGene(clusterDict, opt.gene):       # cluster is Cluster object
             cluster.source = (ix + 1, matchFile)
             totClusters += 1
 
@@ -105,7 +104,6 @@ def getGeneFromMatches(opt, tranList, exonList):
                 localList.append([cluster, sortKey])
 
     localList.sort(key=lambda x: x[1], reverse=True)                   # sort by full/partial counts
-
     totFull = 0
     totPartial = 0
 
@@ -148,12 +146,10 @@ def getGeneFromMatches(opt, tranList, exonList):
 
         myTran.start = start
         myTran.end = end
-
         tranList.append(myTran)
 
         if opt.fasta is not None:
             writeFasta(opt, cluster)
-
     logger.debug('kept %d of %d clusters for gene %s' % (len(localList), totClusters, opt.gene))
     logger.debug('kept clusters include %d full + %d partial reads' % (totFull, totPartial))
 
@@ -415,7 +411,6 @@ def groupTran(tranList, exonList, cluster_num):
     df['max'] = maxVal
     df['name'] = df.apply(getName, axis=1)
     df['exons'] = df.apply(getExon, axis=1)
-
     # Build a matrix contains only true and false
     #
     #   Transcript1:    -----    ----  -- -------
@@ -439,7 +434,6 @@ def groupTran(tranList, exonList, cluster_num):
     #    The number can be interpreted as the similarity between each two
     #  transcript. 0 means they are exactly same while 1 means they have
     # no overlap region.
-
     length = len(df)
     index = df['name']
     matrix = [[calcDis(df, i, j) for i in range(length)] for j in range(length)]
@@ -447,7 +441,6 @@ def groupTran(tranList, exonList, cluster_num):
     distanceTable = pd.DataFrame(matrix)
     distanceTable.columns = index
     distanceTable.index = index
-
     # Group transcripts, n_clusters set how many groups should be assigned
     colorDF = pd.DataFrame()
     colorDF['name'] = df['name']
@@ -511,6 +504,20 @@ def reduceNameLength(tranNames):
         else:
             newTranNames.append(name)
     return newTranNames
+
+
+def getClustersForGene(clusterDict, gene):
+    '''Generator function to return clusters for specified gene.'''
+
+    gd = clusterDict.getGeneDict()
+    gd.update({k.upper(): v for k, v in gd.iteritems()})
+    if gene not in gd:
+        return
+
+    for cluster in gd[gene]:
+        yield cluster
+
+    return
 
 
 class Transcript (object):
