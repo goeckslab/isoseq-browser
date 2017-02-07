@@ -67,5 +67,5 @@ ___
 * Visualizing the first gene will take ~90 seconds because the annotation and pickle files need to be loaded into memory. Visualization additional genes will be instantaneous.
 * Grouping isoforms into many (> 10) clusters can be quite slow.
 
-# References
+# Reference
 * Hu, Jingyuan, Prech Uapinyoying, and Jeremy Goecks. "Interactive analysis of Long-read RNA isoforms with Iso-Seq Browser." bioRxiv (2017): 102905.
