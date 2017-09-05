@@ -79,7 +79,8 @@ def createPlot(height=600, width=1200):
     p = Figure(title="", y_range=[], webgl=True,
                tools=TOOLS, toolbar_location="above",
                plot_height=height, plot_width=width)
-    p.title.text_font_size = TITLE_FONT_SIZE
+    # This causes title to overlap plot substantially:
+    #p.title.text_font_size = TITLE_FONT_SIZE
     p.xgrid.grid_line_color = None               # get rid of the grid in bokeh
     p.ygrid.grid_line_color = None
     # the block of exons, there's mouse hover effect on that
@@ -95,7 +96,8 @@ def createPlot(height=600, width=1200):
            source=tranSource, fill_alpha=0, line_alpha=0,
            nonselection_fill_alpha=0, nonselection_line_alpha=0)
     # what exons really is
-    p.multi_line(xs="xs", ys="ys", line_width="height", color="color",
+    # Cannot use line_width="height" because it is broken.
+    p.multi_line(xs="xs", ys="ys", line_width=opt.height, color="color",
                  line_alpha="line_alpha", source=source)
     # the start/stop codon
     p.inverted_triangle(x="x", y="y", color="color", source=codonSource,
@@ -146,7 +148,7 @@ def updateGene(use_saved_settings=False):
         f.close()
 
     # Clear the current plot.
-    plotColumn.set(children=[])
+    plotColumn.children = []
 
     # Reset the plot to blank when initial updating genes
     blockSource.data = dict(top=[], bottom=[], left=[], right=[], exon=[],
@@ -231,7 +233,7 @@ def updateGene(use_saved_settings=False):
     width = int(opt.width)
 
     plot = createPlot(height=height, width=width)
-    plotColumn.set(children=[plot])
+    plotColumn.children= [plot]
     plot.title.text = "%s isoforms" % opt.gene         # update the title of plot
 
     # p.height = Height.value * 2 * (tranNum + 4)       # set the height of plot according to the length of transcripts
@@ -637,7 +639,7 @@ Group = CheckboxGroup(labels=["Group by file", "Group by similarity"],
 Cluster = Slider(title="Number of isoform groups",
                  value=3, start=1, end=15, step=1.0)
 Height = Slider(title="Transcript height", value=10, start=5, end=30, step=1)
-Width = Slider(title="Plot width", value=800, start=400, end=1500, step=50)
+Width = Slider(title="Plot width", value=600, start=400, end=1500, step=50)
 Save = TextInput(title="Enter the folder name to save data in Fasta", value=None)
 button = Button(label='GO', button_type="success")
 Sort = RadioButtonGroup(labels=["Rank by Gene", "Rank by Transcripts"], active=1)

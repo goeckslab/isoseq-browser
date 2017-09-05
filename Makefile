@@ -26,7 +26,7 @@ $(ANNOTATION_GTF):
 env:
 	mkdir dep && git clone https://github.com/TomSkelly/MatchAnnot dep
 	conda create -n $(ENV_NAME) -y python
-	$(ACTIVATE_ENV) && conda install -y pandas bokeh=0.12.0 scikit-learn
+	$(ACTIVATE_ENV) && conda install -y pandas bokeh=0.12.7 scikit-learn
 	touch env
 
 # Download precomputed MatchAnnot pickle file.
